@@ -15,6 +15,8 @@ Aprire http://127.0.0.1:5173. WASD/frecce: movimento; Spazio: scatto invulnerabi
 
 Avvio e ripresa danno il focus della tastiera all'arena. Quando si passa a un'altra finestra o alla chat, compare una schermata di pausa persistente: WASD/frecce riprendono una pausa automatica, mentre una pausa richiesta con P si chiude con P o con il pulsante Riprendi. I tasti vengono azzerati quando si perde il focus, per evitare movimenti bloccati o rimasti premuti.
 
+Il movimento legge direttamente gli eventi DOM `keydown`/`keyup` in cattura usando `event.code`, con fallback a `event.key`; non dipende dal vecchio `keyCode` o dalla coda tastiera Phaser. La fisica resta Arcade Physics. Anche il cambio di direttore AI restituisce il focus al canvas. Per diagnosi aprire `/?debugControls`: viene mostrata la posizione reale della navicella e il vettore di input, senza esporre credenziali.
+
 ## Hugging Face e Vercel
 
 1. Importare questa cartella come progetto Vite su Vercel. In un repository che contiene anche il piano, impostare **Root Directory: nexus-arena**.

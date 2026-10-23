@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import {PauseState} from './pause-state.js';
+import {GameInput} from './game-input.js';
 import './style.css';
 import './enhancements.css';
 import './pause.css';
@@ -15,9 +16,12 @@ let best=0; try { best=Number(localStorage.getItem('nexus-best')||0); } catch {}
 const coarse=matchMedia('(pointer:coarse)').matches;
 const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const touch={x:0,y:0};
+const debugControls=new URLSearchParams(location.search).has('debugControls');
+let movementDebug;
+if(debugControls){movementDebug=document.createElement('output');movementDebug.id='movementDebug';Object.assign(movementDebug.style,{position:'absolute',top:'50px',left:'20px',zIndex:'3',color:'#b7fa74',background:'#080f18',padding:'8px',font:'12px monospace',pointerEvents:'none'});$('arena').append(movementDebug);}
 let noticeTimer;
 function focusGame(){game.canvas.focus({preventScroll:true});}
-function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';play?.input.keyboard.resetKeys();}
+function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';controls.clear();}
 const pauseState=new PauseState((paused,automatic)=>{
   play.paused=paused;
   play.player.setVelocity(0);
@@ -30,6 +34,7 @@ const pauseState=new PauseState((paused,automatic)=>{
     $('notice').classList.remove('visible');
     if(!automatic)$('resume').focus({preventScroll:true});
   }else{play.physics.resume();play.tweens.resumeAll();play.exhaust.start();focusGame();}
+  play.hud();
 });
 function notice(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),3500);}
 function bestText(){ $('best').textContent=`RECORD ${String(best).padStart(5,'0')}`; } bestText();
@@ -64,10 +69,6 @@ class Arena extends Phaser.Scene {
     this.shield=this.add.image(this.player.x,this.player.y,'shield').setScale(.72).setTint(0x73dcff).setAlpha(.25).setDepth(11);
     this.bursts=this.add.particles(0,0,'spark',{lifespan:{min:180,max:500},speed:{min:60,max:260},scale:{start:.3,end:0},alpha:{start:1,end:0},emitting:false,blendMode:'ADD',maxParticles:350}).setDepth(30);
     this.anims.create({key:'explosion',frames:Array.from({length:20},(_,i)=>({key:'fire'+i})),frameRate:35,hideOnComplete:true});
-    this.keys=this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,E,P,ESC');
-    this.input.keyboard.addCapture(['SPACE','UP','DOWN','LEFT','RIGHT']);
-    this.input.keyboard.on('keydown-P',event=>{if(!event.repeat)togglePause();});this.input.keyboard.on('keydown-ESC',event=>{if(!event.repeat)togglePause();});
-    for(const key of ['W','A','S','D','UP','DOWN','LEFT','RIGHT'])this.input.keyboard.on('keydown-'+key,()=>pauseState.movementPressed());
     game.canvas.tabIndex=0;
     game.canvas.setAttribute('aria-label','Arena: usa WASD o le frecce per muovere la navicella.');
     game.canvas.addEventListener('pointerdown',focusGame);
@@ -84,7 +85,6 @@ class Arena extends Phaser.Scene {
     $('start').disabled=false;$('start').innerHTML='Inizia la missione <span>↗</span>';
     this.input.on('pointerdown',pointer=>{if(this.running&&!this.paused&&coarse&&pointer.x>W*.4)this.emp();});
     this.scale.on('resize',()=>this.fitWorld());this.fitWorld();
-    this.events.on('shutdown',()=>this.input.keyboard.removeAllListeners());
   }
   fitWorld(){this.cameras.main.setViewport(0,0,this.scale.width,this.scale.height);this.cameras.main.setZoom(Math.min(this.scale.width/W,this.scale.height/H));this.cameras.main.centerOn(W/2,H/2);}
   start(){
@@ -121,6 +121,7 @@ class Arena extends Phaser.Scene {
   emp(){if(!this.running||this.paused||this.elapsed<this.empReady)return;this.empReady=this.elapsed+8;const ring=this.add.image(this.player.x,this.player.y,'shield').setScale(.4).setTint(0x6ce7ef).setAlpha(.8).setDepth(25).setBlendMode(Phaser.BlendModes.ADD);this.tweens.add({targets:ring,scale:6,alpha:0,duration:600,onComplete:()=>ring.destroy()});this.hostile.getChildren().forEach(b=>{if(b?.active&&Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<340)b.disableBody(true,true)});[...this.enemies.getChildren()].forEach(e=>{if(Phaser.Math.Distance.Between(e.x,e.y,this.player.x,this.player.y)<340)this.hitEnemy(e,e.kind==='boss'?12:6)});this.sfx('twoTone',.35);if(!reduced)this.cameras.main.shake(120,.004);}
   end(win){if(!this.running)return;this.running=false;this.physics.pause();this.exhaust.stop();this.player.setVelocity(0);if(!win)this.explosion(this.player.x,this.player.y,true);best=Math.max(best,this.score);try{localStorage.setItem('nexus-best',best)}catch{}bestText();$('overlay').classList.remove('hidden');$('touchControls').classList.remove('playing');document.querySelector('.intro-label').innerHTML='<span></span> '+(win?'TRASMISSIONE COMPLETATA':'SEGNALE INTERROTTO');document.querySelector('h1').innerHTML=win?'Sei ancora<br>qui<span>.</span>':'Non è<br>finita<span>.</span>';document.querySelector('.intro p').textContent=`${win?'NEXUS è distrutto. Missione compiuta.':'La flotta NEXUS ha avuto la meglio.'} ${this.score} punti · ${this.kills} nemici · ${Math.floor(this.elapsed)} secondi.`;$('start').innerHTML='Riprova la missione <span>↗</span>';this.sfx(win?'twoTone':'lose',.4);this.hud();}
   hud(){
+    if(movementDebug){const input=controls.movement(touch);movementDebug.textContent=`NAVICELLA x=${this.player.x.toFixed(1)} y=${this.player.y.toFixed(1)} | INPUT x=${input.x.toFixed(2)} y=${input.y.toFixed(2)} | ${this.paused?'PAUSA':'ATTIVO'}`;}
     $('health').style.width=this.hp+'%';$('health').style.background=this.hp<30?'#ff657e':'#b7fa74';$('healthText').textContent=Math.ceil(this.hp);$('score').textContent=String(this.score).padStart(5,'0');const remain=Math.max(0,Math.ceil(90-this.elapsed));$('timer').textContent=String(Math.floor(remain/60)).padStart(2,'0')+':'+String(remain%60).padStart(2,'0');$('wave').textContent=this.boss?.active?`NEXUS ${Math.ceil(this.boss.hp)}%`:`ONDATA 0${Math.min(3,this.wave)}`;$('dashMeter').style.width=Phaser.Math.Clamp(1-(this.dashReady-this.elapsed)/2.4,0,1)*100+'%';$('empMeter').style.width=Phaser.Math.Clamp(1-(this.empReady-this.elapsed)/8,0,1)*100+'%';
   }
   update(_,delta){
@@ -129,8 +130,8 @@ class Arena extends Phaser.Scene {
     this.bg.tilePositionY-=dt*14;this.decor.forEach(m=>{m.y+=m.drift*dt;m.rotation+=m.spin*dt;if(m.y>H+80){m.y=-80;m.x=Math.random()*W;}});
     if(!this.running)return;
     this.elapsed+=dt;this.invincible=Math.max(0,this.invincible-dt);this.dashing=Math.max(0,this.dashing-dt);
-    const k=this.keys;let dx=(k.D.isDown||k.RIGHT.isDown?1:0)-(k.A.isDown||k.LEFT.isDown?1:0)+touch.x,dy=(k.S.isDown||k.DOWN.isDown?1:0)-(k.W.isDown||k.UP.isDown?1:0)+touch.y;const len=Math.hypot(dx,dy);if(len>.1){dx/=Math.max(1,len);dy/=Math.max(1,len);this.lastMove.set(dx,dy).normalize();this.distanceMoved+=dt*310;}
-    if(Phaser.Input.Keyboard.JustDown(k.SPACE))this.dash();if(Phaser.Input.Keyboard.JustDown(k.E))this.emp();
+    const {x:dx,y:dy}=controls.movement(touch);if(Math.hypot(dx,dy)>.1){this.lastMove.set(dx,dy).normalize();this.distanceMoved+=dt*340;}
+    if(controls.consume('dash'))this.dash();if(controls.consume('emp'))this.emp();
     if(this.dashing>0)this.player.setVelocity(this.lastMove.x*1000,this.lastMove.y*1000);else this.player.setVelocity(dx*340,dy*340);
     this.player.rotation=Phaser.Math.Linear(this.player.rotation,dx*.17,Math.min(1,dt*9));this.player.setAlpha(this.invincible>.3?(Math.floor(this.elapsed*16)%2?.55:1):1);this.exhaust.setPosition(this.player.x,this.player.y+24);this.shield.setPosition(this.player.x,this.player.y).setAlpha(this.invincible>0?.6:.1+Math.sin(this.elapsed*3)*.03);
     if(this.elapsed>this.nextFire){this.nextFire=this.elapsed+(this.cores>=10?.14:.19);const angles=this.cores>=10?[-.12,0,.12]:this.cores>=4?[-.045,.045]:[0];angles.forEach(a=>this.shoot(this.bullets,this.player.x+(angles.length===2?(a<0?-13:13):0),this.player.y-30,-Math.PI/2+a,820));this.sfx('laser1',.055);}
@@ -153,7 +154,8 @@ class Arena extends Phaser.Scene {
   }
 }
 
-const game=new Phaser.Game({type:Phaser.AUTO,parent:'game',backgroundColor:'#080d1b',width:W,height:H,scale:{mode:Phaser.Scale.RESIZE,width:'100%',height:'100%'},render:{antialias:true,roundPixels:false},physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},audio:{disableWebAudio:false},scene:[Arena]});
+const controls=new GameInput({target:window,enabled:()=>!!play?.running,onMovement:()=>pauseState.movementPressed(),onPause:togglePause});
+const game=new Phaser.Game({type:Phaser.AUTO,parent:'game',backgroundColor:'#080d1b',width:W,height:H,input:{keyboard:false},scale:{mode:Phaser.Scale.RESIZE,width:'100%',height:'100%'},render:{antialias:true,roundPixels:false},physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},audio:{disableWebAudio:false},scene:[Arena]});
 
 async function requestDirector(){
   if(aiRequest||!play?.running||play.paused)return;
@@ -189,7 +191,7 @@ $('aiProvider').addEventListener('change',()=>{
   selectedProvider=$('aiProvider').value;aiRevision++;aiRequest?.abort();aiRequest=null;
   try{localStorage.setItem('nexus-ai-provider',selectedProvider);}catch{}
   $('aiState').textContent='DIRETTORE SELEZIONATO';
-  if(play?.running){play.aiNext=play.elapsed+.2;notice('Direttore aggiornato: nuova tattica in arrivo.');}
+  if(play?.running){play.aiNext=play.elapsed+.2;notice('Direttore aggiornato: nuova tattica in arrivo.');focusGame();}
   else notice('Direttore selezionato. Avvia la missione per provarlo.');
 });
 $('aiButton').addEventListener('click',()=>{if(play?.running&&!play.paused){play.aiNext=play.elapsed+24;requestDirector();}else notice('Avvia o riprendi la missione per interrogare il direttore.');});
