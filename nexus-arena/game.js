@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {PauseState} from './pause-state.js';
 import {GameInput} from './game-input.js';
+import {turnHeading,gunMount} from './ship-aim.js';
 import './style.css';
 import './enhancements.css';
 import './pause.css';
@@ -21,7 +22,7 @@ let movementDebug;
 if(debugControls){movementDebug=document.createElement('output');movementDebug.id='movementDebug';Object.assign(movementDebug.style,{position:'absolute',top:'50px',left:'20px',zIndex:'3',color:'#b7fa74',background:'#080f18',padding:'8px',font:'12px monospace',pointerEvents:'none'});$('arena').append(movementDebug);}
 let noticeTimer;
 function focusGame(){game.canvas.focus({preventScroll:true});}
-function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';controls.clear();}
+function clearControls(){touch.x=touch.y=0;touch.turnLeft=touch.turnRight=false;stickId=null;$('stickThumb').style.transform='';controls.clear();}
 const pauseState=new PauseState((paused,automatic)=>{
   play.paused=paused;
   play.player.setVelocity(0);
@@ -121,7 +122,7 @@ class Arena extends Phaser.Scene {
   emp(){if(!this.running||this.paused||this.elapsed<this.empReady)return;this.empReady=this.elapsed+8;const ring=this.add.image(this.player.x,this.player.y,'shield').setScale(.4).setTint(0x6ce7ef).setAlpha(.8).setDepth(25).setBlendMode(Phaser.BlendModes.ADD);this.tweens.add({targets:ring,scale:6,alpha:0,duration:600,onComplete:()=>ring.destroy()});this.hostile.getChildren().forEach(b=>{if(b?.active&&Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<340)b.disableBody(true,true)});[...this.enemies.getChildren()].forEach(e=>{if(Phaser.Math.Distance.Between(e.x,e.y,this.player.x,this.player.y)<340)this.hitEnemy(e,e.kind==='boss'?12:6)});this.sfx('twoTone',.35);if(!reduced)this.cameras.main.shake(120,.004);}
   end(win){if(!this.running)return;this.running=false;this.physics.pause();this.exhaust.stop();this.player.setVelocity(0);if(!win)this.explosion(this.player.x,this.player.y,true);best=Math.max(best,this.score);try{localStorage.setItem('nexus-best',best)}catch{}bestText();$('overlay').classList.remove('hidden');$('touchControls').classList.remove('playing');document.querySelector('.intro-label').innerHTML='<span></span> '+(win?'TRASMISSIONE COMPLETATA':'SEGNALE INTERROTTO');document.querySelector('h1').innerHTML=win?'Sei ancora<br>qui<span>.</span>':'Non è<br>finita<span>.</span>';document.querySelector('.intro p').textContent=`${win?'NEXUS è distrutto. Missione compiuta.':'La flotta NEXUS ha avuto la meglio.'} ${this.score} punti · ${this.kills} nemici · ${Math.floor(this.elapsed)} secondi.`;$('start').innerHTML='Riprova la missione <span>↗</span>';this.sfx(win?'twoTone':'lose',.4);this.hud();}
   hud(){
-    if(movementDebug){const input=controls.movement(touch);movementDebug.textContent=`NAVICELLA x=${this.player.x.toFixed(1)} y=${this.player.y.toFixed(1)} | INPUT x=${input.x.toFixed(2)} y=${input.y.toFixed(2)} | ${this.paused?'PAUSA':'ATTIVO'}`;}
+    if(movementDebug){const input=controls.movement(touch);movementDebug.textContent=`NAVICELLA x=${this.player.x.toFixed(1)} y=${this.player.y.toFixed(1)} | ROT=${Phaser.Math.RadToDeg(this.player.rotation).toFixed(1)}° | INPUT x=${input.x.toFixed(2)} y=${input.y.toFixed(2)} | ${this.paused?'PAUSA':'ATTIVO'}`;}
     $('health').style.width=this.hp+'%';$('health').style.background=this.hp<30?'#ff657e':'#b7fa74';$('healthText').textContent=Math.ceil(this.hp);$('score').textContent=String(this.score).padStart(5,'0');const remain=Math.max(0,Math.ceil(90-this.elapsed));$('timer').textContent=String(Math.floor(remain/60)).padStart(2,'0')+':'+String(remain%60).padStart(2,'0');$('wave').textContent=this.boss?.active?`NEXUS ${Math.ceil(this.boss.hp)}%`:`ONDATA 0${Math.min(3,this.wave)}`;$('dashMeter').style.width=Phaser.Math.Clamp(1-(this.dashReady-this.elapsed)/2.4,0,1)*100+'%';$('empMeter').style.width=Phaser.Math.Clamp(1-(this.empReady-this.elapsed)/8,0,1)*100+'%';
   }
   update(_,delta){
@@ -133,8 +134,12 @@ class Arena extends Phaser.Scene {
     const {x:dx,y:dy}=controls.movement(touch);if(Math.hypot(dx,dy)>.1){this.lastMove.set(dx,dy).normalize();this.distanceMoved+=dt*340;}
     if(controls.consume('dash'))this.dash();if(controls.consume('emp'))this.emp();
     if(this.dashing>0)this.player.setVelocity(this.lastMove.x*1000,this.lastMove.y*1000);else this.player.setVelocity(dx*340,dy*340);
-    this.player.rotation=Phaser.Math.Linear(this.player.rotation,dx*.17,Math.min(1,dt*9));this.player.setAlpha(this.invincible>.3?(Math.floor(this.elapsed*16)%2?.55:1):1);this.exhaust.setPosition(this.player.x,this.player.y+24);this.shield.setPosition(this.player.x,this.player.y).setAlpha(this.invincible>0?.6:.1+Math.sin(this.elapsed*3)*.03);
-    if(this.elapsed>this.nextFire){this.nextFire=this.elapsed+(this.cores>=10?.14:.19);const angles=this.cores>=10?[-.12,0,.12]:this.cores>=4?[-.045,.045]:[0];angles.forEach(a=>this.shoot(this.bullets,this.player.x+(angles.length===2?(a<0?-13:13):0),this.player.y-30,-Math.PI/2+a,820));this.sfx('laser1',.055);}
+    this.player.rotation=turnHeading(this.player.rotation,controls.turn(touch),dt);
+    this.player.setAlpha(this.invincible>.3?(Math.floor(this.elapsed*16)%2?.55:1):1);
+    this.exhaust.setPosition(this.player.x-Math.sin(this.player.rotation)*24,this.player.y+Math.cos(this.player.rotation)*24);
+    const exhaustAngle=Phaser.Math.RadToDeg(this.player.rotation)+90;this.exhaust.setEmitterAngle({min:exhaustAngle-15,max:exhaustAngle+15});
+    this.shield.setPosition(this.player.x,this.player.y).setAlpha(this.invincible>0?.6:.1+Math.sin(this.elapsed*3)*.03);
+    if(this.elapsed>this.nextFire){this.nextFire=this.elapsed+(this.cores>=10?.14:.19);const angles=this.cores>=10?[-.12,0,.12]:this.cores>=4?[-.045,.045]:[0];angles.forEach(a=>{const mount=gunMount(this.player.x,this.player.y,this.player.rotation,angles.length===2?(a<0?-13:13):0);this.shoot(this.bullets,mount.x,mount.y,mount.angle+a,820);});this.sfx('laser1',.055);}
     if(this.elapsed>this.nextSpawn&&this.elapsed<94){this.nextSpawn=this.elapsed+Math.max(.45,1.35-this.elapsed*.009)*(this.tactic==='relief'?1.55:1);this.spawn(this.elapsed>32&&Math.random()<.3?'heavy':this.tactic==='flank'||Math.random()<.3?'interceptor':'scout');}
     const wave=1+Math.floor(Math.min(89,this.elapsed)/30);if(wave!==this.wave){this.wave=wave;notice(`ONDATA 0${wave} · ${wave===2?'LA FLOTTA SI AVVICINA':'ULTIMA LINEA DI DIFESA'}`);this.sfx('twoTone',.25);}
     if(this.elapsed>=65&&!this.bossSpawned)this.spawnBoss();
@@ -196,6 +201,10 @@ $('aiProvider').addEventListener('change',()=>{
 });
 $('aiButton').addEventListener('click',()=>{if(play?.running&&!play.paused){play.aiNext=play.elapsed+24;requestDirector();}else notice('Avvia o riprendi la missione per interrogare il direttore.');});
 $('touchDash').addEventListener('pointerdown',e=>{e.preventDefault();play?.dash()});$('touchEmp').addEventListener('pointerdown',e=>{e.preventDefault();play?.emp()});
+for(const [id,action] of [['touchTurnLeft','turnLeft'],['touchTurnRight','turnRight']]){
+  const button=$(id);button.addEventListener('pointerdown',event=>{event.preventDefault();if(!play?.running||play.paused)return;button.setPointerCapture(event.pointerId);touch[action]=true;});
+  for(const type of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(type,()=>{touch[action]=false;});
+}
 const stick=$('stick');let stickId=null;
 function moveStick(e){if(e.pointerId!==stickId)return;const r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y),f=Math.min(l,35)/Math.max(1,l);touch.x=x*f/35;touch.y=y*f/35;$('stickThumb').style.transform=`translate(${x*f}px,${y*f}px)`;}
 stick.addEventListener('pointerdown',e=>{e.preventDefault();stickId=e.pointerId;stick.setPointerCapture(e.pointerId);moveStick(e);});stick.addEventListener('pointermove',moveStick);['pointerup','pointercancel','lostpointercapture'].forEach(event=>stick.addEventListener(event,()=>{stickId=null;touch.x=touch.y=0;$('stickThumb').style.transform='';}));

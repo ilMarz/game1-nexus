@@ -1,5 +1,5 @@
-const bindings={KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right',Space:'dash',KeyE:'emp',KeyP:'pause',Escape:'pause'};
-const keyAliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',e:'KeyE',p:'KeyP',' ':'Space',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'};
+const bindings={KeyW:'up',ArrowUp:'up',KeyS:'down',ArrowDown:'down',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right',Space:'dash',KeyQ:'turnLeft',KeyE:'turnRight',KeyF:'emp',KeyP:'pause',Escape:'pause'};
+const keyAliases={w:'KeyW',a:'KeyA',s:'KeyS',d:'KeyD',q:'KeyQ',e:'KeyE',f:'KeyF',p:'KeyP',' ':'Space',up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight',escape:'Escape',arrowup:'ArrowUp',arrowdown:'ArrowDown',arrowleft:'ArrowLeft',arrowright:'ArrowRight'};
 export class GameInput {
   constructor({target,enabled,onMovement,onPause}){
     this.held=new Set();this.edges=new Set();this.enabled=enabled;this.onMovement=onMovement;this.onPause=onPause;
@@ -12,7 +12,7 @@ export class GameInput {
       event.preventDefault();
       if(event.repeat||this.held.has(code))return;
       if(action==='pause'){this.onPause();return;}
-      if(['left','right','up','down'].includes(action))this.onMovement();
+      if(['left','right','up','down','turnLeft','turnRight'].includes(action))this.onMovement();
       this.held.add(code);this.edges.add(action);
     };
     this.up=event=>{const code=bindings[event.code]?event.code:keyAliases[String(event.key).toLowerCase()];this.held.delete(code);};
@@ -20,6 +20,7 @@ export class GameInput {
   }
   clear(){this.held.clear();this.edges.clear();}
   consume(action){const pressed=this.edges.has(action);this.edges.delete(action);return pressed;}
+  turn(touch={}){return Number(this.held.has('KeyE')||!!touch.turnRight)-Number(this.held.has('KeyQ')||!!touch.turnLeft);}
   movement(touch={x:0,y:0}){
     const actions=new Set([...this.held].map(code=>bindings[code]));
     let x=Number(actions.has('right'))-Number(actions.has('left'))+touch.x;

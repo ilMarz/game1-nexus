@@ -35,3 +35,8 @@ test('text editing, disabled gameplay and browser shortcuts are not captured',()
 test('key names are a fallback if the host omits physical event.code',()=>{
   const s=setup();s.key('keydown','','ArrowRight');assert.equal(s.controls.movement().x,1);s.key('keyup','','ArrowRight');assert.equal(s.controls.movement().x,0);
 });
+test('Q/E rotate independently of translation and F triggers EMP',()=>{
+  const s=setup();s.key('keydown','KeyE','e');assert.equal(s.controls.turn(),1);assert.equal(s.controls.consume('emp'),false);assert.deepEqual(s.controls.movement(),{x:0,y:0});
+  s.key('keydown','KeyQ','q');assert.equal(s.controls.turn(),0);s.key('keyup','KeyE','e');assert.equal(s.controls.turn(),-1);
+  s.key('keydown','KeyF','f');assert.equal(s.controls.consume('emp'),true);s.controls.clear();assert.equal(s.controls.turn(),0);
+});

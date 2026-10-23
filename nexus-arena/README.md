@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Aprire http://127.0.0.1:5173. WASD/frecce: movimento; Spazio: scatto invulnerabile; E: EMP; P: pausa. Su touch: joystick e pulsanti. Il fuoco è automatico. Per vincere, distruggere NEXUS e raggiungere 90 secondi; dopo 150 secondi senza aver distrutto il boss la missione termina.
+Aprire http://127.0.0.1:5173. WASD/frecce: movimento; Spazio: scatto invulnerabile; Q/E: rotazione; F: EMP; P: pausa. Su touch: joystick e pulsanti. Il fuoco è automatico e segue la direzione della navicella. La rotazione resta quando rilasci Q/E; WASD e frecce mantengono lo spostamento sugli assi dello schermo. Per vincere, distruggere NEXUS e raggiungere 90 secondi; dopo 150 secondi senza aver distrutto il boss la missione termina.
 
 Avvio e ripresa danno il focus della tastiera all'arena. Quando si passa a un'altra finestra o alla chat, compare una schermata di pausa persistente: WASD/frecce riprendono una pausa automatica, mentre una pausa richiesta con P si chiude con P o con il pulsante Riprendi. I tasti vengono azzerati quando si perde il focus, per evitare movimenti bloccati o rimasti premuti.
 
