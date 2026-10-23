@@ -11,7 +11,7 @@ const $ = id => document.getElementById(id);
 const W=1440,H=900;
 let play, soundOn=false, runId=0, aiRequest=null, aiRevision=0;
 let selectedProvider='auto';
-try{const saved=localStorage.getItem('nexus-ai-provider');if(['auto','typesafe','huggingface'].includes(saved))selectedProvider=saved;}catch{}
+try{const saved=localStorage.getItem('nexus-ai-provider');if(['off','auto','typesafe','huggingface'].includes(saved))selectedProvider=saved;}catch{}
 $('aiProvider').value=selectedProvider;
 let best=0; try { best=Number(localStorage.getItem('nexus-best')||0); } catch {}
 const coarse=matchMedia('(pointer:coarse)').matches;
@@ -39,6 +39,12 @@ const pauseState=new PauseState((paused,automatic)=>{
 });
 function notice(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),3500);}
 function bestText(){ $('best').textContent=`RECORD ${String(best).padStart(5,'0')}`; } bestText();
+function fixedDirector(){
+  if(play){play.tactic='assault';play.aiNext=Infinity;play.hud();}
+  $('aiState').textContent='AI OFF · ASSALTO FISSO';$('aiState').title='Nessuna chiamata API. Nemici con comportamento programmato e tattica di assalto fissa.';
+  $('director').textContent='MODALITÀ CLASSICA · ASSALTO FISSO';$('aiButton').disabled=true;
+}
+if(selectedProvider==='off')fixedDirector();
 
 class Arena extends Phaser.Scene {
   constructor(){super('Arena');}
@@ -94,7 +100,7 @@ class Arena extends Phaser.Scene {
     this.serial=++runId;this.running=true;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=1;this.dashReady=0;this.empReady=0;this.invincible=1.5;this.dashing=0;this.wave=1;this.tactic='assault';this.aiNext=7;this.bossSpawned=false;this.bossDefeated=false;this.distanceMoved=0;
     [this.enemies,this.pickups].forEach(g=>g.clear(true,true));[this.bullets,this.hostile].forEach(g=>g.getChildren().forEach(b=>{if(b)b.disableBody(true,true)}));
     this.previewShips.forEach(s=>s.setVisible(false));this.hero.setVisible(false);this.heroShield.setVisible(false);this.player.enableBody(true,W/2,H*.7,true,true);this.player.setAlpha(1);this.player.setRotation(0);this.shield.setVisible(true);this.exhaust.start();this.physics.resume();
-    $('overlay').classList.add('hidden');$('touchControls').classList.add('playing');$('pause').textContent='Ⅱ';$('objective').textContent='SOPRAVVIVI · ELIMINA NEXUS';$('aiState').textContent='DIRETTORE LOCALE';this.sound.setMute(!soundOn);this.sfx('twoTone',.3);notice('ONDATA 01 · CONTATTO NEMICO');this.hud();focusGame();
+    $('overlay').classList.add('hidden');$('touchControls').classList.add('playing');$('pause').textContent='Ⅱ';$('objective').textContent='SOPRAVVIVI · ELIMINA NEXUS';$('aiState').textContent='DIRETTORE LOCALE';this.sound.setMute(!soundOn);this.sfx('twoTone',.3);notice('ONDATA 01 · CONTATTO NEMICO');this.hud();focusGame();if(selectedProvider==='off')fixedDirector();
   }
   sfx(key,volume=.2){if(soundOn&&this.cache.audio.exists(key))this.sound.play(key,{volume});}
   fx(x,y,tint,count=15){this.bursts.setParticleTint(tint);this.bursts.explode(count,x,y);}
@@ -122,6 +128,7 @@ class Arena extends Phaser.Scene {
   emp(){if(!this.running||this.paused||this.elapsed<this.empReady)return;this.empReady=this.elapsed+8;const ring=this.add.image(this.player.x,this.player.y,'shield').setScale(.4).setTint(0x6ce7ef).setAlpha(.8).setDepth(25).setBlendMode(Phaser.BlendModes.ADD);this.tweens.add({targets:ring,scale:6,alpha:0,duration:600,onComplete:()=>ring.destroy()});this.hostile.getChildren().forEach(b=>{if(b?.active&&Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<340)b.disableBody(true,true)});[...this.enemies.getChildren()].forEach(e=>{if(Phaser.Math.Distance.Between(e.x,e.y,this.player.x,this.player.y)<340)this.hitEnemy(e,e.kind==='boss'?12:6)});this.sfx('twoTone',.35);if(!reduced)this.cameras.main.shake(120,.004);}
   end(win){if(!this.running)return;this.running=false;this.physics.pause();this.exhaust.stop();this.player.setVelocity(0);if(!win)this.explosion(this.player.x,this.player.y,true);best=Math.max(best,this.score);try{localStorage.setItem('nexus-best',best)}catch{}bestText();$('overlay').classList.remove('hidden');$('touchControls').classList.remove('playing');document.querySelector('.intro-label').innerHTML='<span></span> '+(win?'TRASMISSIONE COMPLETATA':'SEGNALE INTERROTTO');document.querySelector('h1').innerHTML=win?'Sei ancora<br>qui<span>.</span>':'Non è<br>finita<span>.</span>';document.querySelector('.intro p').textContent=`${win?'NEXUS è distrutto. Missione compiuta.':'La flotta NEXUS ha avuto la meglio.'} ${this.score} punti · ${this.kills} nemici · ${Math.floor(this.elapsed)} secondi.`;$('start').innerHTML='Riprova la missione <span>↗</span>';this.sfx(win?'twoTone':'lose',.4);this.hud();}
   hud(){
+    $('tacticState').textContent='TATTICA: '+({assault:'ASSALTO',flank:'LATERALE',barrage:'RAFFICA',relief:'TREGUA'}[this.tactic]||'ASSALTO');
     if(movementDebug){const input=controls.movement(touch);movementDebug.textContent=`NAVICELLA x=${this.player.x.toFixed(1)} y=${this.player.y.toFixed(1)} | ROT=${Phaser.Math.RadToDeg(this.player.rotation).toFixed(1)}° | INPUT x=${input.x.toFixed(2)} y=${input.y.toFixed(2)} | ${this.paused?'PAUSA':'ATTIVO'}`;}
     $('health').style.width=this.hp+'%';$('health').style.background=this.hp<30?'#ff657e':'#b7fa74';$('healthText').textContent=Math.ceil(this.hp);$('score').textContent=String(this.score).padStart(5,'0');const remain=Math.max(0,Math.ceil(90-this.elapsed));$('timer').textContent=String(Math.floor(remain/60)).padStart(2,'0')+':'+String(remain%60).padStart(2,'0');$('wave').textContent=this.boss?.active?`NEXUS ${Math.ceil(this.boss.hp)}%`:`ONDATA 0${Math.min(3,this.wave)}`;$('dashMeter').style.width=Phaser.Math.Clamp(1-(this.dashReady-this.elapsed)/2.4,0,1)*100+'%';$('empMeter').style.width=Phaser.Math.Clamp(1-(this.empReady-this.elapsed)/8,0,1)*100+'%';
   }
@@ -154,7 +161,7 @@ class Arena extends Phaser.Scene {
     [this.bullets,this.hostile].forEach(group=>group.getChildren().forEach(b=>{if(!b?.active)return;b.life-=dt;if(b.life<=0||b.x<0||b.x>W||b.y<0||b.y>H)b.disableBody(true,true)}));
     this.pickups.getChildren().forEach(p=>{if(!p?.active)return;p.life-=dt;if(p.life<=0)p.destroy();else if(Phaser.Math.Distance.Between(p.x,p.y,this.player.x,this.player.y)<130)this.physics.moveToObject(p,this.player,230);});
     if(this.elapsed>=90){if(this.bossDefeated)this.end(true);else{$('objective').textContent='DISTRUGGI NEXUS PER FUGGIRE';if(this.elapsed>150)this.end(false);}}
-    if(this.elapsed>=this.aiNext){this.aiNext=this.elapsed+24;requestDirector();}
+    if(selectedProvider!=='off'&&this.elapsed>=this.aiNext){this.aiNext=this.elapsed+24;requestDirector();}
     this.hud();
   }
 }
@@ -163,6 +170,7 @@ const controls=new GameInput({target:window,enabled:()=>!!play?.running,onMoveme
 const game=new Phaser.Game({type:Phaser.AUTO,parent:'game',backgroundColor:'#080d1b',width:W,height:H,input:{keyboard:false},scale:{mode:Phaser.Scale.RESIZE,width:'100%',height:'100%'},render:{antialias:true,roundPixels:false},physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},audio:{disableWebAudio:false},scene:[Arena]});
 
 async function requestDirector(){
+  if(selectedProvider==='off'){fixedDirector();return;}
   if(aiRequest||!play?.running||play.paused)return;
   const request=new AbortController();aiRequest=request;
   const serial=play.serial,revision=aiRevision;
@@ -195,6 +203,10 @@ $('sound').addEventListener('click',()=>{soundOn=!soundOn;game.sound.setMute(!so
 $('aiProvider').addEventListener('change',()=>{
   selectedProvider=$('aiProvider').value;aiRevision++;aiRequest?.abort();aiRequest=null;
   try{localStorage.setItem('nexus-ai-provider',selectedProvider);}catch{}
+  if(selectedProvider==='off'){fixedDirector();if(play?.running){notice('AI disattivata · assalto fisso, nessuna chiamata API.');focusGame();}return;}
+  $('aiButton').disabled=false;
+  if(play)play.tactic='assault';
+  $('director').textContent='NEXUS OSSERVA. NUOVA TATTICA IN ATTESA.';
   $('aiState').textContent='DIRETTORE SELEZIONATO';
   if(play?.running){play.aiNext=play.elapsed+.2;notice('Direttore aggiornato: nuova tattica in arrivo.');focusGame();}
   else notice('Direttore selezionato. Avvia la missione per provarlo.');

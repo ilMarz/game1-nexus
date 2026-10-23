@@ -1,6 +1,6 @@
 # Verifica del prototipo
 
-- `npm test`: 25 test passati: API, provider, `.env`, pausa, input e rotazione. Verificati Q/E indipendenti dallo spostamento, F per EMP, velocità angolare indipendente dal frame rate, direzione e punti di origine dei laser nei quattro quadranti.
+- `npm test`: 26 test passati: API, provider, `.env`, pausa, input, rotazione e modalità AI off senza chiamate a provider.
 - `npm run build`: completata. Il bundle principale include il motore Phaser; Vite segnala il superamento della soglia indicativa di 500 kB, con circa 364 kB gzip di JavaScript.
 - Browser reale: caricamento asset, avvio, movimento WASD, fuoco e collisioni, nemici, punteggio, potenziamento doppio laser, sconfitta, nuovo avvio e pausa osservati.
 - Correzione input: focus del canvas all'avvio/ripresa; movimento orizzontale e verticale osservato con WASD, pausa manuale persistente che non viene chiusa dai tasti movimento, pulsante Riprendi visibile. La ripresa automatica alla pressione di un tasto movimento è coperta dal test di regressione.
@@ -13,3 +13,4 @@
 - Browser: selettore Jev/Qwen/Auto visibile e selezione Jev verificata. Il direttore mantiene le quattro tattiche implementate; le frasi associate a Jev sono predefinite.
 - Nuovo gestore input: in locale D sposta X da 720 a 929,7, W sposta Y da 630 a circa 494. Dopo il cambio di direttore e la ripresa, le frecce spostano la nave a X=788 e Y=607 circa. Nella build compilata servita su porta 4174, destra/su spostano la nave da (720,630) a circa (879,505), poi il vettore torna a zero al rilascio. Posizioni lette dall'output diagnostico visibile, oltre all'ispezione grafica.
 - Rotazione nel browser: tenendo E per circa 550 ms, orientamento misurato a 90,3°. La nave resta orientata a destra dopo il rilascio e dopo lo spostamento con D; laser e scia seguono il muso. Aggiunti pulsanti di rotazione anche ai controlli touch (non verificati su hardware touch).
+- AI off: verificati selezione prima della partita, passaggio Jev → off durante la partita, assalto fisso, refresh AI disabilitato e indicatore tattico sotto il timer. Le risposte tardive della modalità precedente vengono ignorate tramite revisione della selezione; l'endpoint off non esegue fetch, come verificato dal test. Il confronto non usa un seed condiviso tra partite.

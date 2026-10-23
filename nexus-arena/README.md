@@ -29,6 +29,8 @@ Per testare l'AI sul computer, copiare `.env.example` in `.env`, inserire la pro
 
 ### Jev / TypeSafe
 
+Per confrontare il direttore generativo con il comportamento programmato scegliere **AI disattivata** nel selettore, anche durante una partita. La modalità off non chiama API, annulla le richieste in corso e ignora le loro risposte tardive. La tattica torna immediatamente ad assalto fisso; i nemici continuano a muoversi, sparare e seguire la progressione delle ondate. Non c'è adattamento alla salute o alle azioni del giocatore. I nemici e i proiettili già presenti restano nella partita: il confronto durante una singola partita non è un test controllato. La tattica corrente è visibile sotto il timer. Riattivando Jev/Qwen viene richiesta una nuova decisione alla ripresa della simulazione; la scelta off è ricordata anche dopo il reload.
+
 Nel file `.env` (oppure nelle variabili server di Vercel) impostare:
 
 ```env

@@ -19,8 +19,9 @@ export default async function handler(req,res){
   const origin=req.headers.origin,host=req.headers.host;if(origin){try{if(new URL(origin).host!==host)return fallback('origin_not_allowed',403);}catch{return fallback('origin_not_allowed',403);}}
   let body=req.body;try{if(typeof body==='string')body=JSON.parse(body);}catch{return fallback('invalid_snapshot',400);}
   const snapshot=sanitizeSnapshot(body);if(!snapshot)return fallback('invalid_snapshot',400);
-  provider=selectProvider(body.provider);
+  provider=body.provider==='off'?'off':selectProvider(body.provider);
   if(!provider)return fallback('invalid_provider',400);
+  if(provider==='off')return res.status(200).json({source:'local',tactic:'assault',message:'Modalità classica: assalto fisso.'});
   const token=provider==='typesafe'?process.env.TYPESAFE_API_KEY:process.env.HF_TOKEN;
   if(!hasKey(token))return fallback('missing_token');
   const now=Date.now(),ip=String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'unknown').split(',')[0];
