@@ -1,5 +1,16 @@
 # Verifica di Comando Orbitale
 
+## Espansione: economia, fortificazioni e rivalutazioni live
+
+- 78 test: aggiunti 10 controlli su ricerca/sblocchi, estrazione solo alimentata e solo in combattimento, cantieri temporizzati anche live, intercettazione delle navi già in movimento, danno dei bombardieri, potenziamenti, ricostruzione, riallocazione del solo budget residuo, retarget senza trasformare le navi, snapshot validati e risorse di fine ondata.
+- Test precedenti ancora inclusi: partita completa di sei ondate e conservazione del budget.
+- Browser reale (layout mobile circa 700 × 630): sbloccata Industria, costruiti laser N1/E1 e un estrattore S1, rete 6/6, 25 crediti e 40 leghe rimasti. Prima risposta Jev: 333 ms, confidenza 56%, corazze da sud verso gli estrattori.
+- Barriera sud avviata durante il combattimento, con costo realmente scalato. Al termine degli 8 secondi, arco ciano operativo e danni alla barriera osservati (164/180 e poi 60/180). Estrattore effettivamente distrutto; rete scesa a 4/6. Produzione osservata: +6 crediti e +3 leghe.
+- Seconda risposta Jev a 12 s: 236 ms, piano confermato, 5 punti riserva. Terza risposta a 30 s: 250 ms, confidenza 37%, nuovo obiettivo barriere, nessuna riserva rimasta. Contatore RISPOSTA #3, cronologia e perdite osservate visibili. Sono misure di una partita, non un benchmark strategico.
+- Qwen coperto con risposte simulate; nessuna nuova chiamata Qwen reale. Nessun test su telefono fisico. Deploy Vercel non eseguito.
+
+## Verifica precedente della modalità strategica
+
 - 68 test passati, inclusi i 52 test arcade e 16 verifiche di simulazione/API strategica.
 - Sei ondate adattive completate nella simulazione con difese costruite e potenziate usando i crediti guadagnati; verificati anche sconfitta, EMP, rete satura, perdita dei reattori e assenza di stalli.
 - Il test comparativo usa lo stesso piano, budget e seed: difese al nord proteggono meglio dall’ingresso nord rispetto alle stesse difese al sud.
