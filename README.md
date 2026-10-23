@@ -1,6 +1,6 @@
-# NEXUS — Ultimo segnale
+# NEXUS — Comando Orbitale
 
-Gioco browser con Phaser 4, asset Kenney CC0 e direttore tattico Jev/TypeSafe o Qwen/Hugging Face via API server.
+Gioco strategico browser: costruisci difese su 16 postazioni e proteggi una stazione per sei ondate. Jev/TypeSafe o Qwen/Hugging Face studiano lo schieramento e scelgono ingresso, composizione e obiettivo della flotta nemica. Motore Phaser 4, asset originali Kenney CC0 e inferenza solo tramite API server. Lo shooter precedente resta disponibile in `/arcade.html`.
 
 ```sh
 cd nexus-arena

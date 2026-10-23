@@ -1,4 +1,18 @@
-# Verifica del prototipo
+# Verifica di Comando Orbitale
+
+- 68 test passati, inclusi i 52 test arcade e 16 verifiche di simulazione/API strategica.
+- Sei ondate adattive completate nella simulazione con difese costruite e potenziate usando i crediti guadagnati; verificati anche sconfitta, EMP, rete satura, perdita dei reattori e assenza di stalli.
+- Il test comparativo usa lo stesso piano, budget e seed: difese al nord proteggono meglio dall’ingresso nord rispetto alle stesse difese al sud.
+- Tutte le composizioni spendono esattamente il budget fissato dal gioco, da 14 a 49; risposta del modello e campi non autorizzati non possono cambiarlo.
+- Browser 713 × 630: costruiti laser in N1, E1 e S1, crediti 240 → 30, rete 6/6, copertura dei settori aggiornata e scelta delle postazioni tramite barra touch.
+- Chiamata reale Jev verificata: 361 ms, confidenza minima fra le tre scelte 53%. Piano: corazzati da ovest contro le strutture raggruppate; il pannello identifica ovest fra i settori meno coperti e tre laser vulnerabili alle corazze.
+- Prima ondata completata nel browser: 6 abbattimenti, 0 passaggi, nucleo integro, 1 torretta distrutta, bonus 87. Crediti finali 179 e cantiere riaperto per la seconda ondata.
+- Secondo schieramento reale: laser N1, missili E1, reattore S1, crediti 5 e rete 5/10. Jev seleziona corazzati da sud con obiettivo reattori (1111 ms, confidenza minima 49%). Il settore sud ha copertura 0; gli attaccanti convergono sul reattore, osservato a 16/90 integrità prima della pausa. La barra sulla mappa mostra il piano applicato.
+- Qwen verificato con risposta simulata; nessuna nuova chiamata reale Hugging Face in questa iterazione. Le tre scelte native Jev sono state invece provate con il servizio reale.
+- Build multipagina e due Function Vercel configurate; deploy non eseguito in questa sessione. Nessuna modifica alle chiavi esistenti.
+- Il completamento delle sei ondate è stato verificato nella simulazione; la partita manuale browser ha coperto la prima ondata. Nessuna prova su telefono fisico.
+
+# Archivio delle verifiche arcade
 
 - `npm test`: 52 test passati: API, provider, `.env`, pausa, input, AI off, mira e fuoco automatico, tattiche, adattamento e joystick. Inclusi due puntatori simultanei indipendenti, rilascio di un controller senza interrompere l’altro, zona morta, cattura persa, annullamento e reset.
 - `npm run build`: completata. Il bundle principale include il motore Phaser; Vite segnala il superamento della soglia indicativa di 500 kB, con circa 364 kB gzip di JavaScript.

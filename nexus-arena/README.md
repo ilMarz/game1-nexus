@@ -1,85 +1,65 @@
-# NEXUS — Ultimo segnale
+# NEXUS — Comando Orbitale
 
-Gioco browser realizzato con **Phaser 4.2.1**, Arcade Physics e asset professionali Kenney Space Shooter Redux (CC0). Tre ondate, boss, fuoco automatico continuo, scatto, EMP, potenziamenti, suoni e record locale. Il direttore strategico usa **Jev di TypeSafe oppure Qwen via Hugging Face**, sempre via API server, senza modelli nel browser.
+Gioco strategico browser con **Phaser 4.2.1**, asset originali **Kenney Space Shooter Redux** e comandante nemico **Jev / TypeSafe** oppure **Qwen / Hugging Face**, tramite API server. Nessun modello ML locale.
 
-## Avvio
+## Avvio e pagine
 
-Richiede Node 22.12 o successivo.
+Richiede Node 22.12 o successivo:
 
 ```sh
 npm install
 npm run dev
 ```
 
-Aprire http://127.0.0.1:5173. WASD/frecce: movimento; Spazio: scatto invulnerabile; F: EMP; P: pausa. Su touch: joystick e pulsanti. Il mouse orienta la navicella verso il cursore; il fuoco è automatico e continuo, senza clic e senza munizioni limitate. Prima di muovere il mouse la nave spara in avanti. WASD e frecce spostano la nave sugli assi dello schermo, indipendentemente dalla mira. Il mirino segue il cursore. Pausa, perdita di focus e fine partita fermano il fuoco. Fuori dal canvas la mira mantiene la sua ultima posizione. Su touch: joystick sinistro per muoversi e joystick destro per orientarsi, con fuoco automatico. Per vincere, distruggere NEXUS e raggiungere 90 secondi; dopo 150 secondi senza aver distrutto il boss la missione termina.
+- `http://127.0.0.1:5173/`: Comando Orbitale, la modalità principale.
+- `/arcade.html`: lo shooter precedente, conservato con mira mouse e due joystick touch. [Istruzioni arcade](ARCADE.md).
+- `/strategie.html`: anteprima delle atmosfere della modalità arcade.
 
-Avvio e ripresa danno il focus della tastiera all'arena. Quando si passa a un'altra finestra o alla chat, compare una schermata di pausa persistente: WASD/frecce riprendono una pausa automatica, mentre una pausa richiesta con P si chiude con P o con il pulsante Riprendi. I tasti vengono azzerati quando si perde il focus, per evitare movimenti bloccati o rimasti premuti.
+Il server rilegge `.env` dopo il salvataggio. Le variabili esterne del processo hanno priorità; le modifiche al codice delle API richiedono il riavvio del server locale.
 
-Su mobile ci sono **due joystick indipendenti**: sinistro per lo spostamento, destro per orientamento e mira a 360°. Il destro indica una direzione relativa alla nave; rilasciandolo la nave conserva quell’orientamento anche mentre si sposta. Il fuoco resta automatico. EMP e scatto sono sopra il joystick destro. I controller hanno zona morta radiale, cattura separata dei due puntatori e reset su pausa, perdita del focus o fine partita. Il mouse torna a gestire la mira quando viene mosso sull’arena; i tocchi sul canvas non sovrascrivono la mira del joystick. Per verificare il layout anche su desktop aprire `/?touchControls`, oppure `/?touchControls&debugControls` per leggere posizione e orientamento.
+## Come giocare
 
-Il movimento legge direttamente gli eventi DOM `keydown`/`keyup` in cattura usando `event.code`, con fallback a `event.key`; non dipende dal vecchio `keyCode` o dalla coda tastiera Phaser. La fisica resta Arcade Physics. Anche il cambio di direttore AI restituisce il focus al canvas. Per diagnosi aprire `/?debugControls`: viene mostrata la posizione reale della navicella e il vettore di input, senza esporre credenziali.
+Difendi il nucleo per **sei ondate**. Durante la preparazione il tempo della battaglia è fermo: seleziona una delle **16 postazioni**, costruisci, potenzia (fino al livello 3), vendi (rimborso 65%) o ripara. Parti con **240 crediti**, **6 energia** e **300 integrità del nucleo**. I crediti arrivano dagli abbattimenti e dal bonus di fine ondata.
 
-## Hugging Face e Vercel
+| Struttura | Costo | Energia | Impiego |
+|---|---:|---:|---|
+| Laser | 70 | 2 | Rapido contro unità leggere; danno ridotto contro corazze |
+| Missili | 100 | 3 | Proiettili guidati con danno elevato; cadenza lenta |
+| Scudo | 85 | 3 | Protegge le strutture vicine e il nucleo se nel raggio |
+| Reattore | 65 | +4 per livello | Alimenta la rete; vulnerabile alle incursioni |
 
-1. Importare questa cartella come progetto Vite su Vercel. In un repository che contiene anche il piano, impostare **Root Directory: nexus-arena**.
-2. Build: `npm run build`; output: `dist`. `api/director.js` diventa una Vercel Function.
-3. In Vercel → Settings → Environment Variables aggiungere **HF_TOKEN**, con un token Hugging Face autorizzato a Inference Providers. Non usare il prefisso `VITE_`: la chiave deve restare sul server.
-4. Facoltativamente impostare **HF_MODEL**; default `Qwen/Qwen3-8B`. Verificare che il modello sia servito dal provider e che l'account abbia credito.
-5. Eseguire il deploy o redeploy dopo aver aggiunto le variabili.
+I potenziamenti aumentano anche il consumo delle difese. Se la rete è satura, alcune strutture diventano offline: usa **Equilibrata / Armi / Scudi**, oppure disattiva singoli moduli. I reattori distrutti riducono subito la capacità della rete. Gli scudi assorbono danni e ricaricano dopo tre secondi senza colpi.
 
-Per testare l'AI sul computer, copiare `.env.example` in `.env`, inserire la propria chiave e riavviare `npm run dev`. Non inserire token nella chat o nei file del frontend.
+Quando premi **Avvia ondata**, il cantiere si chiude e viene inviata una fotografia dello schieramento. Dopo la decisione del comandante, un preavviso di quattro secondi precede l’attacco. Durante il combattimento puoi ridistribuire energia, cambiare priorità di tiro e toccare un nemico per concentrare le armi su di lui. **EMP** stordisce e danneggia i nemici vicini al nucleo, una volta per ondata. Le riparazioni e la vendita sono disponibili solo tra le ondate. Dopo 60 secondi, eventuali incursori ancora impegnati contro infrastrutture passano all’assalto del nucleo, evitando stalli infiniti contro gli scudi.
 
-### Jev / TypeSafe
+Su mobile la barra inferiore consente costruzione e avvio senza lasciare la mappa. Le 16 postazioni sono selezionabili anche dalla barra scorrevole; **Gestisci** apre i dettagli del modulo. La pausa manuale o automatica congela combattimento e preavviso. La preparazione non ha limite di tempo.
 
-Per confrontare il direttore generativo con il comportamento programmato scegliere **AI disattivata** nel selettore, anche durante una partita. La modalità off non chiama API, annulla le richieste in corso e ignora le loro risposte tardive. La tattica torna immediatamente ad assalto fisso; i nemici continuano a muoversi, sparare e seguire la progressione delle ondate. Non c'è adattamento alla salute o alle azioni del giocatore. I nemici e i proiettili già presenti restano nella partita: il confronto durante una singola partita non è un test controllato. La tattica corrente è visibile sotto il timer. Riattivando Jev/Qwen viene richiesta una nuova decisione alla ripresa della simulazione; la scelta off è ricordata anche dopo il reload.
+## Il comandante AI
 
-Nel file `.env` (oppure nelle variabili server di Vercel) impostare:
+Una richiesta per ondata, dopo la conferma delle difese. Jev risponde a tre domande Choice: **settore d’ingresso**, **composizione** (mista, sciame, corazze, bombardieri, razziatori), **obiettivo** (nucleo, reattori, strutture raggruppate). Qwen restituisce gli stessi tre campi in JSON. Sono accettate soltanto scelte implementate.
+
+Il contesto include strutture, livelli, integrità, alimentazione, copertura stimata dei quattro settori, concentrazione delle strutture e piano/esito dell’ondata precedente. I laser favoriscono contromosse corazzate, i missili possono essere saturati dagli sciami, i gruppi sono vulnerabili al bombardamento e i reattori ai razziatori. Le unità agiscono davvero su questi obiettivi e passano al nucleo quando non rimangono bersagli adatti.
+
+Il modello **non decide risorse, statistiche o quantità arbitrarie**. Il budget è fissato dal gioco: 14, 21, 28, 35, 42, 49. Ogni flotta spende esattamente quel budget. Lo scenario usa il seed 716; riprovando con lo stesso piano si ottengono gli stessi ingressi e la stessa composizione del manifesto. La simulazione in tempo reale può avere piccole differenze legate al frame rate.
+
+Il pannello Intelligence mostra risposta reale, latenza, confidenza Jev e piano applicato. Le osservazioni esplicative sono ricavate dallo schieramento: non vengono presentate come ragionamento interno del modello. Il rapporto di fine ondata mostra nemici abbattuti, passaggi, danni al nucleo e strutture distrutte.
+
+**Senza AI** non effettua richieste: usa ingresso nord, flotta mista e obiettivo nucleo con lo stesso budget. Durante errori o chiavi mancanti si applica un piano a regole, dichiarato **REGOLE LOCALI · FALLBACK**. Non viene chiamato un altro provider a pagamento. Il limite server è di 6 richieste al minuto per indirizzo e istanza; non è un tetto di spesa globale. Il prototipo non include account o persistenza della partita.
+
+## Chiavi e Vercel
+
+Le chiavi esistenti continuano a funzionare. Nel file `.env`, escluso da Git:
 
 ```env
-TYPESAFE_API_KEY=la_propria_chiave_typesafe
+TYPESAFE_API_KEY=la_propria_chiave
 TYPESAFE_MODEL=jev-1.14.0
-AI_PROVIDER=auto
+HF_TOKEN=il_proprio_token
+HF_MODEL=Qwen/Qwen3-8B
 ```
 
-Il server locale rilegge `.env` dopo il salvataggio; non serve riavviarlo. Su Vercel le nuove variabili richiedono un redeploy. Le variabili già presenti nell'ambiente del processo hanno priorità sul file.
+Non usare il prefisso `VITE_`. Le credenziali restano sul server. Il nuovo endpoint è `/api/commander`; quello arcade resta `/api/director`.
 
-Dal selettore **Direttore AI** si sceglie **Jev · TypeSafe**, **Qwen · Hugging Face** oppure **AI automatica**. Auto usa Jev quando la sua chiave è configurata, altrimenti Qwen. Una selezione esplicita senza chiave usa regole locali e mostra quale configurazione manca: non viene chiamato un altro servizio a pagamento.
-
-Jev riceve la telemetria numerica e una domanda Choice con quattro alternative: `assault`, `flank`, `barrage`, `relief`. Risposta e confidenza vengono validate. Le comunicazioni italiane associate alle scelte di Jev sono frasi preparate dal gioco, non testo generato dal modello. Il tooltip dello stato riporta latenza server e confidenza; le API continuano a controllare frequenza e azioni consentite. **JEV ATTIVO** compare soltanto dopo una risposta reale valida. La confidenza è informativa: non sono ancora state calibrate soglie per questo gioco.
-
-Fonti: [API nativa TypeSafe](https://docs.typesafe.ai/api/system-one), [Choice](https://docs.typesafe.ai/primitives/choice), [modelli](https://docs.typesafe.ai/models).
-
-Il modello riceve solo telemetria numerica della partita. La prima lettura automatica arriva dopo 4 secondi; poi rivaluta ogni 12 secondi o dopo cambiamenti rilevanti, con almeno 8 secondi fra le richieste. Propone `assault`, `flank`, `barrage` o `relief`; Qwen genera anche una comunicazione italiana. Solo risposte valide sono applicate. L'interfaccia mostra **HUGGING FACE ATTIVO** esclusivamente dopo una risposta reale Qwen. Senza token o durante errori resta disponibile un direttore a regole, dichiarato nel pannello. Non c'è inferenza ML locale. La Function accetta al massimo 8 richieste al minuto per indirizzo e per istanza.
-
-### Adattamento al modo di giocare
-
-Una finestra mobile di 8 secondi misura gli spostamenti reali della nave, non solo i tasti premuti: posizione, velocità firmata, percorso totale, prevedibilità della rotta, tempo fermo e ai bordi, danni subiti, eliminazioni, precisione dei laser e minacce vicine. Ripararsi non cancella i danni recenti. La telemetria viene azzerata a ogni partita e non accumula movimento durante la pausa.
-
-Jev e Qwen ricevono gli stessi segnali e il contesto della tattica attuale. L’esecuzione della tattica viene aggiornata ogni mezzo secondo dal gioco:
-
-- **Assalto:** rinforzi sulla corsia della nave e inseguimento che può anticiparne lo spostamento; pressione leggermente maggiore se il giocatore elimina rapidamente i nemici con scafo alto.
-- **Laterale:** due angoli di accerchiamento. Su una rotta prevedibile gli intercettori puntano avanti; gli ingressi laterali seguono il movimento e mantengono almeno 300 unità di distanza al momento dell’annuncio.
-- **Raffica:** tiro anticipato sulle rotte prevedibili e salve a ventaglio da unità selezionate. La mira si fissa 550 ms prima del colpo e viene disegnata: un cambio di rotta permette di evitarla.
-- **Tregua:** rinforzi più lontani e diradati, inseguimento al 80% e intervallo di tiro aumentato del 35%. I proiettili già lanciati restano attivi.
-
-Una protezione locale impone recupero quando lo scafo scende al 25%, i danni nella finestra raggiungono 35, oppure ci sono almeno 12 minacce vicine. Il recupero locale dura almeno 8 secondi; una risposta aggressiva tardiva non lo annulla. Il pannello distingue **REGOLE · RECUPERO**, la proposta AI e un eventuale **RECUPERO PROTETTO**. I segnali e la descrizione dell’esecuzione sono calcolati dal gioco, non sono una spiegazione del ragionamento interno del modello. Con **AI disattivata** restano assalto fisso, inseguimento classico e nessuna protezione adattiva.
-
-Il limiter della Function è in memoria e offre solo una protezione per singola istanza: non è un limite di spesa globale. Prima di esporre il gioco a traffico elevato configurare limiti del provider e un rate limit condiviso/Vercel Firewall. Il prototipo non include autenticazione.
-
-## Leggere la strategia durante la partita
-
-Il pannello nell’arena mostra la tattica effettiva, chi l’ha scelta, le ultime tre decisioni con il tempo di partita e il numero delle risposte API valide con latenza server. Jev e Qwen scelgono fra le stesse quattro tattiche: possono quindi prendere la stessa decisione. Il pannello distingue richieste in corso, risposte reali, AI disattivata e fallback a regole locali.
-
-- **Assalto frontale, arancione:** frecce dall’alto e nemici che inseguono il giocatore.
-- **Attacco laterale, viola:** frecce da sinistra e destra, con rinforzi dai fianchi.
-- **Raffica, rosa:** intervallo di tiro ridotto del 30%, salve e linee che anticipano il tiro.
-- **Tregua, verde:** rinforzi diradati e nemici rallentati; quelli già presenti continuano ad attaccare.
-
-I cerchi nell’arena anticipano di 750 ms la posizione reale di un nuovo rinforzo. La pausa congela anche questo preavviso. Un cambio di tattica cancella gli arrivi ancora annunciati; i nemici già presenti rimangono. Colori, frecce e testi derivano dalla stessa configurazione usata dalla simulazione.
-
-Ogni tattica cambia anche l’aspetto dell’arena: nebulosa e illuminazione ambra con scansioni per l’assalto; onde viola dai fianchi per il laterale; griglia e reticoli rossi per la raffica; aurora e anelli verdi per la tregua. La transizione dura 850 ms e non modifica fisica, controllo della nave o colori dei proiettili. Gli effetti si fermano in pausa; con `prefers-reduced-motion` il cambio è immediato e le animazioni ambientali delle strategie restano ferme.
-
-Dal menu **Aspetto delle strategie** si apre `/strategie.html`: anteprima separata con quattro pulsanti, gli stessi effetti Phaser della partita e nessuna chiamata AI. È inclusa nella build Vercel come seconda pagina.
+Per Vercel: **Root Directory `nexus-arena`**, framework Vite, build `npm run build`, output `dist`. Configura le variabili server e fai un redeploy. La build include pagina strategica, arcade e anteprima; entrambe le Function sono configurate in `vercel.json`.
 
 ## Verifica
 
@@ -88,8 +68,8 @@ npm test
 npm run build
 ```
 
-I test API verificano validazione, fallback, token server e risposta simulata del provider. Per verificare l'inferenza reale serve HF_TOKEN. Gli asset sono inclusi nel progetto e non dipendono da hotlink esterni.
+I test comprendono economia, rete energetica, contromosse, budget delle flotte, effetti del posizionamento, EMP, stalli, vittoria sulle sei ondate, sconfitta, validazione delle API e credenziali solo server. Restano inclusi i test della modalità arcade. Le prove con risposte simulate non certificano la qualità strategica dei modelli. Dettagli e prove browser in [VERIFICA.md](VERIFICA.md).
 
 ## Asset e licenze
 
-Grafica e SFX: **Kenney Vleugels, Space Shooter Redux**, CC0. Fonte: https://opengameart.org/content/space-shooter-redux. Licenza originale: `public/assets/LICENSE-KENNEY.txt`. Le immagini distribuite sono i file originali del pacchetto; non provengono da giochi proprietari. Sfondo della nebulosa di Orione: NASA, ESA, Hubble Space Telescope Orion Treasury Project Team, Massimo Robberto (STScI, ESA); fonte https://science.nasa.gov/asset/hubble/orion-nebula-3/. Crediti completi in `public/assets/CREDITS.txt`. Phaser: MIT.
+Sprite e suoni originali **Kenney Vleugels, Space Shooter Redux**, CC0. Fonte: https://opengameart.org/content/space-shooter-redux. Licenza: `public/assets/LICENSE-KENNEY.txt`. Sfondo Orione: NASA, ESA, Hubble Space Telescope Orion Treasury Project Team, Massimo Robberto (STScI, ESA); fonte https://science.nasa.gov/asset/hubble/orion-nebula-3/. Crediti in `public/assets/CREDITS.txt`. Phaser: MIT.
