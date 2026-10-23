@@ -27,7 +27,7 @@ let movementDebug;
 if(debugControls){movementDebug=document.createElement('output');movementDebug.id='movementDebug';Object.assign(movementDebug.style,{position:'absolute',top:'50px',left:'20px',zIndex:'3',color:'#b7fa74',background:'#080f18',padding:'8px',font:'12px monospace',pointerEvents:'none'});$('arena').append(movementDebug);}
 let noticeTimer;
 function focusGame(){game.canvas.focus({preventScroll:true});}
-function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';controls.clear();play?.aimInput?.stop();}
+function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';controls.clear();}
 const pauseState=new PauseState((paused,automatic)=>{
   play.paused=paused;
   play.player.setVelocity(0);
@@ -84,9 +84,9 @@ class Arena extends Phaser.Scene {
     this.bursts=this.add.particles(0,0,'spark',{lifespan:{min:180,max:500},speed:{min:60,max:260},scale:{start:.3,end:0},alpha:{start:1,end:0},emitting:false,blendMode:'ADD',maxParticles:350}).setDepth(30);
     this.anims.create({key:'explosion',frames:Array.from({length:20},(_,i)=>({key:'fire'+i})),frameRate:35,hideOnComplete:true});
     game.canvas.tabIndex=0;
-    game.canvas.setAttribute('aria-label','Arena: usa WASD o le frecce per muovere la navicella.');
+    game.canvas.setAttribute('aria-label','Arena: WASD o frecce per muoverti, mouse per mirare. Fuoco automatico continuo.');
     game.canvas.addEventListener('pointerdown',focusGame);
-    this.aimInput=new PointerAim({surface:game.canvas,target:window,enabled:()=>this.running,onInteract:()=>{pauseState.movementPressed();focusGame();}});
+    this.aimInput=new PointerAim({surface:game.canvas,enabled:()=>this.running,onInteract:()=>{pauseState.movementPressed();focusGame();}});
     this.reticle=this.add.graphics().setDepth(40).setVisible(false);
     this.tacticGraphics=this.add.graphics().setDepth(4);this.spawnWarnings=[];
     this.reticle.lineStyle(1.5,0x6ce7ef,.9).strokeCircle(0,0,11).lineBetween(-17,0,-7,0).lineBetween(7,0,17,0).lineBetween(0,-17,0,-7).lineBetween(0,7,0,17);
@@ -200,7 +200,7 @@ class Arena extends Phaser.Scene {
     this.exhaust.setPosition(this.player.x-Math.sin(this.player.rotation)*24,this.player.y+Math.cos(this.player.rotation)*24);
     const exhaustAngle=Phaser.Math.RadToDeg(this.player.rotation)+90;this.exhaust.setEmitterAngle({min:exhaustAngle-15,max:exhaustAngle+15});
     this.shield.setPosition(this.player.x,this.player.y).setAlpha(this.invincible>0?.6:.1+Math.sin(this.elapsed*3)*.03);
-    if(this.aimInput.firing&&aim&&this.elapsed>this.nextFire){this.nextFire=this.elapsed+(this.cores>=10?.14:.19);const angles=this.cores>=10?[-.12,0,.12]:this.cores>=4?[-.045,.045]:[0];angles.forEach(a=>{const mount=gunMount(this.player.x,this.player.y,this.player.rotation,angles.length===2?(a<0?-13:13):0);this.shoot(this.bullets,mount.x,mount.y,mount.angle+a,820);this.shotsFired++;});this.sfx('laser1',.055);}
+    if(this.elapsed>this.nextFire){this.nextFire=this.elapsed+(this.cores>=10?.14:.19);const angles=this.cores>=10?[-.12,0,.12]:this.cores>=4?[-.045,.045]:[0];angles.forEach(a=>{const mount=gunMount(this.player.x,this.player.y,this.player.rotation,angles.length===2?(a<0?-13:13):0);this.shoot(this.bullets,mount.x,mount.y,mount.angle+a,820);this.shotsFired++;});this.sfx('laser1',.055);}
     if(this.elapsed>this.nextSpawn&&this.elapsed<94){
       this.nextSpawn=this.elapsed+Math.max(.45,1.35-this.elapsed*.009)*tacticFor(this.tactic).spawnMultiplier;
       const kind=this.elapsed>32&&Math.random()<.3?'heavy':this.tactic==='flank'||Math.random()<.3?'interceptor':'scout';
