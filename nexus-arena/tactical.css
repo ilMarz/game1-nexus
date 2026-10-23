@@ -3,6 +3,9 @@
 @media(max-width:850px){.tactical{top:44px;width:245px;padding:10px 12px}.tactical p{font-size:11px}.tactical-symbol{font-size:21px}}
 @media(max-width:500px),(max-height:570px){.tactical{top:40px;width:210px;padding:8px 10px}.tactical-symbol{font-size:18px}.tactical h2{font-size:11px}.tactical p{font-size:10px;margin-top:6px}.tactical .tactical-hint,.tactical ol{display:none}.tactical small{font-size:8px;padding-top:5px;margin-top:6px}}
 .tactical header{gap:9px}.tactical header>div{min-width:0}.tactical h2{letter-spacing:.4px;font-size:12px}.tactical-symbol{font-size:20px}
-#notice{left:auto;right:20px;transform:none;top:45px;max-width:calc(100% - 330px);width:350px;font-size:10px;line-height:1.6}
-@media(max-width:850px){#notice{max-width:calc(100% - 290px)}}
-@media(max-width:500px),(max-height:570px){#notice{top:auto;bottom:120px;left:50%;right:auto;transform:translateX(-50%);max-width:90%;font-size:9px}.tactical h2{font-size:11px}}
+.strategy-preview-link{position:absolute;right:34px;top:42px;z-index:5;color:#9eb2b9;font:9px monospace;text-decoration:none;padding:8px 0}.strategy-preview-link:hover{color:#e7f2ee}
+#arena:has(.overlay.hidden)>.strategy-preview-link{display:none}#arena .arena-corners{color:var(--strategy-color,#78949c)}#arena .hud-center strong{text-shadow:0 0 28px var(--strategy-color,transparent)}#arena .tactical{box-shadow:0 8px 30px #0003,inset 0 1px var(--strategy-color,#ffad6b)}
+@media(max-width:850px){.strategy-preview-link{right:20px;top:34px;font-size:8px}}
+#arena #notice{left:auto;right:20px;transform:none;top:45px;max-width:calc(100% - 330px);width:350px;font-size:10px;line-height:1.6}
+@media(max-width:850px){#arena #notice{max-width:calc(100% - 290px)}}
+@media(max-width:500px),(max-height:570px){#arena #notice{top:auto;bottom:120px;left:50%;right:auto;transform:translateX(-50%);max-width:90%;font-size:9px}.tactical h2{font-size:11px}}

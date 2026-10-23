@@ -62,6 +62,10 @@ Il pannello nell’arena mostra la tattica effettiva, chi l’ha scelta, le ulti
 
 I cerchi nell’arena anticipano di 750 ms la posizione reale di un nuovo rinforzo. La pausa congela anche questo preavviso. Un cambio di tattica cancella gli arrivi ancora annunciati; i nemici già presenti rimangono. Colori, frecce e testi derivano dalla stessa configurazione usata dalla simulazione.
 
+Ogni tattica cambia anche l’aspetto dell’arena: nebulosa e illuminazione ambra con scansioni per l’assalto; onde viola dai fianchi per il laterale; griglia e reticoli rossi per la raffica; aurora e anelli verdi per la tregua. La transizione dura 850 ms e non modifica fisica, controllo della nave o colori dei proiettili. Gli effetti si fermano in pausa; con `prefers-reduced-motion` il cambio è immediato e le animazioni ambientali delle strategie restano ferme.
+
+Dal menu **Aspetto delle strategie** si apre `/strategie.html`: anteprima separata con quattro pulsanti, gli stessi effetti Phaser della partita e nessuna chiamata AI. È inclusa nella build Vercel come seconda pagina.
+
 ## Verifica
 
 ```sh

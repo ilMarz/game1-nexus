@@ -5,6 +5,7 @@ import {headingToTarget,gunMount} from './ship-aim.js';
 import {PointerAim,surfacePoint} from './pointer-aim.js';
 import {tacticFor,spawnPoint} from './tactics.js';
 import {TacticalDisplay} from './tactical-display.js';
+import {StrategyVisuals} from './strategy-visuals.js';
 import './tactical.css';
 import './style.css';
 import './enhancements.css';
@@ -66,13 +67,14 @@ class Arena extends Phaser.Scene {
     play=this;
     this.running=false;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=0;this.dashReady=0;this.empReady=0;this.invincible=0;this.dashing=0;this.wave=1;this.tactic='assault';this.aiNext=8;this.bossSpawned=false;this.bossDefeated=false;this.serial=0;this.distanceMoved=0;this.lastMove=new Phaser.Math.Vector2(0,-1);
     this.bg=this.add.tileSprite(W/2,H/2,W,H,'stars').setTint(0x6b7198).setAlpha(.65).setDepth(-100);
-    if(this.textures.exists('nebula'))this.add.image(W*.6,H*.43,'nebula').setDisplaySize(W*1.3,H*1.3).setAlpha(.42).setTint(0x759be3).setDepth(-99);
+    if(this.textures.exists('nebula'))this.nebula=this.add.image(W*.6,H*.43,'nebula').setDisplaySize(W*1.3,H*1.3).setAlpha(.42).setTint(0x759be3).setDepth(-99);
     this.decor=[];
     for(let i=0;i<18;i++){
       const m=this.add.image(Phaser.Math.Between(-80,W+80),Phaser.Math.Between(-80,H+80),i%2?'meteor':'meteor2').setScale(Phaser.Math.FloatBetween(.12,.65)).setAlpha(Phaser.Math.FloatBetween(.15,.45)).setDepth(-20);
       m.spin=Phaser.Math.FloatBetween(-.15,.15);m.drift=Phaser.Math.FloatBetween(6,25);this.decor.push(m);
     }
     this.starDust=this.add.particles(0,0,'spark',{x:{min:0,max:W},y:-10,lifespan:9000,speedY:{min:60,max:150},speedX:0,frequency:100,scale:{start:.06,end:.01},alpha:{start:.4,end:0},blendMode:'ADD'}).setDepth(-10);
+    this.strategyVisuals=new StrategyVisuals(this,{width:W,height:H,nebula:this.nebula,stars:this.bg,dust:this.starDust,reduced});
     this.enemies=this.physics.add.group();this.bullets=this.physics.add.group({maxSize:150,defaultKey:'laser'});this.hostile=this.physics.add.group({maxSize:180,defaultKey:'redLaser'});this.pickups=this.physics.add.group();
     this.player=this.physics.add.sprite(W*.5,H*.7,'player').setScale(.67).setDepth(10).setCollideWorldBounds(true);
     this.player.body.setSize(48,48).setOffset(31,15);
@@ -104,7 +106,7 @@ class Arena extends Phaser.Scene {
   }
   fitWorld(){this.cameras.main.setViewport(0,0,this.scale.width,this.scale.height);this.cameras.main.setZoom(Math.min(this.scale.width/W,this.scale.height/H));this.cameras.main.centerOn(W/2,H/2);}
   start(){
-    tactical.reset();this.spawnWarnings=[];this.tacticGraphics.clear();
+    tactical.reset();this.spawnWarnings=[];this.tacticGraphics.clear();this.strategyVisuals.activate('assault',{immediate:true});
     this.aimInput.reset();this.reticle.setVisible(false);this.shotsFired=0;this.lastMove.set(0,-1);
     aiRequest?.abort();aiRequest=null;
     pauseState.reset();clearControls();$('pauseOverlay').hidden=true;$('pause').setAttribute('aria-label','Pausa');
@@ -116,6 +118,8 @@ class Arena extends Phaser.Scene {
   setTactic(key,source,announce=true){
     const changed=this.tactic!==key;this.tactic=key;
     if(changed)this.spawnWarnings=[];
+    if(this.running)this.strategyVisuals.activate(key);
+    $('arena').style.setProperty('--strategy-color',tacticFor(key).css);
     tactical.show(key,source,this.elapsed);
     $('tacticState').textContent='TATTICA: '+tacticFor(key).name;
     $('tacticState').style.color=tacticFor(key).css;
@@ -178,6 +182,7 @@ class Arena extends Phaser.Scene {
   update(_,delta){
     const dt=Math.min(delta/1000,.04);
     if(this.paused)return;
+    if(this.running)this.strategyVisuals.update(dt);
     this.bg.tilePositionY-=dt*14;this.decor.forEach(m=>{m.y+=m.drift*dt;m.rotation+=m.spin*dt;if(m.y>H+80){m.y=-80;m.x=Math.random()*W;}});
     if(!this.running)return;
     this.elapsed+=dt;this.invincible=Math.max(0,this.invincible-dt);this.dashing=Math.max(0,this.dashing-dt);
