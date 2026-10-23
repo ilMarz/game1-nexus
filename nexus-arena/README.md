@@ -51,6 +51,17 @@ Il modello riceve solo telemetria numerica della partita. Ogni 24 secondi propon
 
 Il limiter della Function è in memoria e offre solo una protezione per singola istanza: non è un limite di spesa globale. Prima di esporre il gioco a traffico elevato configurare limiti del provider e un rate limit condiviso/Vercel Firewall. Il prototipo non include autenticazione.
 
+## Leggere la strategia durante la partita
+
+Il pannello nell’arena mostra la tattica effettiva, chi l’ha scelta, le ultime tre decisioni con il tempo di partita e il numero delle risposte API valide con latenza server. Jev e Qwen scelgono fra le stesse quattro tattiche: possono quindi prendere la stessa decisione. Il pannello distingue richieste in corso, risposte reali, AI disattivata e fallback a regole locali.
+
+- **Assalto frontale, arancione:** frecce dall’alto e nemici che inseguono il giocatore.
+- **Attacco laterale, viola:** frecce da sinistra e destra, con rinforzi dai fianchi.
+- **Raffica, rosa:** intervallo di tiro ridotto del 30%; linee di mira visibili negli ultimi 450 ms prima del colpo.
+- **Tregua, verde:** intervallo fra rinforzi aumentato del 55%; i nemici già presenti continuano ad attaccare.
+
+I cerchi nell’arena anticipano di 750 ms la posizione reale di un nuovo rinforzo. La pausa congela anche questo preavviso. Un cambio di tattica cancella gli arrivi ancora annunciati; i nemici già presenti rimangono. Colori, frecce e testi derivano dalla stessa configurazione usata dalla simulazione.
+
 ## Verifica
 
 ```sh
