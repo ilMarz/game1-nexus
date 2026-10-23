@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {PauseState} from './pause-state.js';
 import {GameInput} from './game-input.js';
-import {turnHeading,gunMount} from './ship-aim.js';
+import {headingToCenter,gunMount} from './ship-aim.js';
 import './style.css';
 import './enhancements.css';
 import './pause.css';
@@ -22,7 +22,7 @@ let movementDebug;
 if(debugControls){movementDebug=document.createElement('output');movementDebug.id='movementDebug';Object.assign(movementDebug.style,{position:'absolute',top:'50px',left:'20px',zIndex:'3',color:'#b7fa74',background:'#080f18',padding:'8px',font:'12px monospace',pointerEvents:'none'});$('arena').append(movementDebug);}
 let noticeTimer;
 function focusGame(){game.canvas.focus({preventScroll:true});}
-function clearControls(){touch.x=touch.y=0;touch.turnLeft=touch.turnRight=false;stickId=null;$('stickThumb').style.transform='';controls.clear();}
+function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';controls.clear();}
 const pauseState=new PauseState((paused,automatic)=>{
   play.paused=paused;
   play.player.setVelocity(0);
@@ -141,7 +141,7 @@ class Arena extends Phaser.Scene {
     const {x:dx,y:dy}=controls.movement(touch);if(Math.hypot(dx,dy)>.1){this.lastMove.set(dx,dy).normalize();this.distanceMoved+=dt*340;}
     if(controls.consume('dash'))this.dash();if(controls.consume('emp'))this.emp();
     if(this.dashing>0)this.player.setVelocity(this.lastMove.x*1000,this.lastMove.y*1000);else this.player.setVelocity(dx*340,dy*340);
-    this.player.rotation=turnHeading(this.player.rotation,controls.turn(touch),dt);
+    this.player.rotation=headingToCenter(this.player.x,this.player.y,W/2,H/2,this.player.rotation);
     this.player.setAlpha(this.invincible>.3?(Math.floor(this.elapsed*16)%2?.55:1):1);
     this.exhaust.setPosition(this.player.x-Math.sin(this.player.rotation)*24,this.player.y+Math.cos(this.player.rotation)*24);
     const exhaustAngle=Phaser.Math.RadToDeg(this.player.rotation)+90;this.exhaust.setEmitterAngle({min:exhaustAngle-15,max:exhaustAngle+15});
@@ -213,10 +213,6 @@ $('aiProvider').addEventListener('change',()=>{
 });
 $('aiButton').addEventListener('click',()=>{if(play?.running&&!play.paused){play.aiNext=play.elapsed+24;requestDirector();}else notice('Avvia o riprendi la missione per interrogare il direttore.');});
 $('touchDash').addEventListener('pointerdown',e=>{e.preventDefault();play?.dash()});$('touchEmp').addEventListener('pointerdown',e=>{e.preventDefault();play?.emp()});
-for(const [id,action] of [['touchTurnLeft','turnLeft'],['touchTurnRight','turnRight']]){
-  const button=$(id);button.addEventListener('pointerdown',event=>{event.preventDefault();if(!play?.running||play.paused)return;button.setPointerCapture(event.pointerId);touch[action]=true;});
-  for(const type of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(type,()=>{touch[action]=false;});
-}
 const stick=$('stick');let stickId=null;
 function moveStick(e){if(e.pointerId!==stickId)return;const r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y),f=Math.min(l,35)/Math.max(1,l);touch.x=x*f/35;touch.y=y*f/35;$('stickThumb').style.transform=`translate(${x*f}px,${y*f}px)`;}
 stick.addEventListener('pointerdown',e=>{e.preventDefault();stickId=e.pointerId;stick.setPointerCapture(e.pointerId);moveStick(e);});stick.addEventListener('pointermove',moveStick);['pointerup','pointercancel','lostpointercapture'].forEach(event=>stick.addEventListener(event,()=>{stickId=null;touch.x=touch.y=0;$('stickThumb').style.transform='';}));
