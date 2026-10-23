@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../api/director.js';
 import {buildJevRequest,parseJevDecision,selectProvider} from '../server/jev.js';
-const snapshot={elapsed:35,health:20,kills:18,cores:4,movement:120,enemies:8};
+const snapshot={elapsed:35,health:20,kills:18,cores:4,movement:120,enemies:8,x:80,y:40,vx:-220,vy:10,speed:230,consistency:90,stationaryPct:0,edgePct:60,recentDamage:36,recentKills:3,accuracy:70,threats:4,windowSeconds:8};
 const mockAnswer={model:'jev-1.14.0',answers:{tactic:{type:'choice',choice:'relief',confidence:.88,probabilities:{assault:.02,flank:.03,barrage:.05,relief:.9}}}};
 function response(){return {statusCode:200,setHeader(){},status(n){this.statusCode=n;return this},json(data){this.data=data;return this}};}
 test('auto chooses Jev only with a real TypeSafe key; explicit selection stays explicit',()=>{
@@ -17,6 +17,7 @@ test('Jev receives a bounded Choice with the four implemented game actions',()=>
   assert.equal(body.model,'jev-1.14.0');assert.equal(body.questions.tactic.type,'choice');
   assert.deepEqual(Object.keys(body.questions.tactic.criteria),['assault','flank','barrage','relief']);
   assert.deepEqual(body.state.telemetry,snapshot);assert.ok(!('max_tokens' in body));
+  assert.equal(body.state.telemetry.vx,-220);assert.ok(body.questions.tactic.instructions.includes('recentDamage'));assert.ok(body.questions.tactic.criteria.flank.includes('intercept'));
 });
 test('Jev choices and confidence are validated; prose comes from the game',()=>{
   const decision=parseJevDecision(mockAnswer);assert.equal(decision.tactic,'relief');assert.equal(decision.confidence,.88);assert.equal(typeof decision.message,'string');
@@ -27,7 +28,20 @@ test('TypeSafe adapter sends server secret to the native endpoint, never the cli
   globalThis.fetch=async(url,options)=>{sent={url,options};return {ok:true,json:async()=>mockAnswer}};
   try{const res=response();await handler({method:'POST',headers:{'x-forwarded-for':'jev-success'},body:{...snapshot,provider:'typesafe'}},res);
     assert.equal(sent.url,'https://api.typesafe.ai/v1/systemone');assert.equal(sent.options.headers.Authorization,'Bearer typesafe_test_secret');
+    assert.equal(JSON.parse(sent.options.body).state.telemetry.recentDamage,36);
     assert.equal(res.data.source,'typesafe');assert.equal(res.data.tactic,'relief');assert.equal(res.data.confidence,.88);assert.equal(typeof res.data.latencyMs,'number');assert.ok(!JSON.stringify(res.data).includes('typesafe_test_secret'));
+  }finally{globalThis.fetch=originalFetch;if(saved===undefined)delete process.env.TYPESAFE_API_KEY;else process.env.TYPESAFE_API_KEY=saved;}
+});
+test('server caps adaptive model calls at eight per minute per address',async()=>{
+  const saved=process.env.TYPESAFE_API_KEY,originalFetch=globalThis.fetch;process.env.TYPESAFE_API_KEY='typesafe_test_secret';let calls=0;
+  globalThis.fetch=async()=>{calls++;return {ok:true,json:async()=>mockAnswer};};
+  try{
+    for(let i=0;i<9;i++){
+      const res=response();await handler({method:'POST',headers:{'x-forwarded-for':'adaptive-rate-test'},body:{...snapshot,provider:'typesafe'}},res);
+      assert.equal(res.statusCode,i<8?200:429);
+      if(i===8)assert.equal(res.data.reason,'rate_limited');
+    }
+    assert.equal(calls,8);
   }finally{globalThis.fetch=originalFetch;if(saved===undefined)delete process.env.TYPESAFE_API_KEY;else process.env.TYPESAFE_API_KEY=saved;}
 });
 test('missing TypeSafe credentials do not silently charge Hugging Face',async()=>{

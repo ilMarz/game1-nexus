@@ -1,4 +1,5 @@
 // Shared server helpers live outside api/ so Vercel doesn't deploy them as routes.
+import {directorInstructions,telemetryUnits} from './director-context.js';
 const tactics=['assault','flank','barrage','relief'];
 const messages={
   assault:'Avanzata frontale. Il tuo segnale non può nascondersi.',
@@ -17,17 +18,17 @@ export function buildJevRequest(snapshot,model=process.env.TYPESAFE_MODEL||'jev-
     model,
     state:{
       scenario:'A real-time space shooter. The player must survive 90 seconds and destroy the final boss. You direct the enemy fleet; the goal is a tense, fair fight with time to react.',
-      units:{elapsed:'seconds since mission start',health:'remaining hull percent',movement:'average movement speed in world units per second',kills:'enemies destroyed',cores:'repair and weapon pickups collected',enemies:'active enemies on screen'},
+      units:telemetryUnits,
       telemetry:snapshot
     },
     questions:{tactic:{
       type:'choice',
-      instructions:'Choose the next fleet tactic from the current telemetry. Give a badly damaged player breathing room. With healthy players, choose a tactic that challenges their movement and combat performance without overwhelming them. Choose only the tactic; the game code controls all movement, firing, collision and limits.',
+      instructions:directorInstructions,
       criteria:{
-        assault:'Balanced frontal pursuit for a player coping with the current enemies. The normal opening tactic.',
-        flank:'Send interceptors from the sides to challenge a healthy player staying still or easily clearing frontal enemies.',
-        barrage:'Increase enemy firing frequency to challenge a healthy, mobile player who is clearing enemies effectively.',
-        relief:'Slow enemy reinforcements when hull health is low, or too many enemies are already threatening the player.'
+        assault:'Frontal pursuit and reinforcements aligned with the player lane. Keep balanced pressure when stronger counters are unnecessary.',
+        flank:'Split enemies into two approach angles and intercept ahead of predictable movement; bias side entry toward the player route. Counter edge camping or a repeated straight escape.',
+        barrage:'More frequent fire with telegraphed aim and heavy-ship spread. Lead predictable motion, dislodge stationary aiming or challenge a healthy player clearing enemies efficiently.',
+        relief:'Slower reinforcements from far away, slower pursuit and slower fire. Necessary under critical health, recent repeated damage or many nearby threats.'
       }
     }}
   };

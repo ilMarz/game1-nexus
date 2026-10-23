@@ -6,6 +6,7 @@ import {PointerAim,surfacePoint} from './pointer-aim.js';
 import {tacticFor,spawnPoint} from './tactics.js';
 import {TacticalDisplay} from './tactical-display.js';
 import {StrategyVisuals} from './strategy-visuals.js';
+import {FlightTelemetry,DirectorCadence,executionPlan,adaptiveSpawn,enemyIntent,firingTarget,needsRelief,localTactic,resolveTactic} from './adaptive-director.js';
 import './tactical.css';
 import './style.css';
 import './enhancements.css';
@@ -45,7 +46,7 @@ const pauseState=new PauseState((paused,automatic)=>{
 function notice(message){$('notice').textContent=message;$('notice').classList.add('visible');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').classList.remove('visible'),3500);}
 function bestText(){ $('best').textContent=`RECORD ${String(best).padStart(5,'0')}`; } bestText();
 function fixedDirector(){
-  if(play){play.setTactic('assault','AI OFF · REGOLE FISSE');play.aiNext=Infinity;play.hud();}
+  if(play){play.recoveryUntil=0;play.setTactic('assault','AI OFF · REGOLE FISSE');play.hud();}
   tactical.root.querySelector('[data-request]').textContent='AI disattivata · nessuna chiamata API';
   $('aiState').textContent='AI OFF · ASSALTO FISSO';$('aiState').title='Nessuna chiamata API. Nemici con comportamento programmato e tattica di assalto fissa.';
   $('director').textContent='MODALITÀ CLASSICA · ASSALTO FISSO';$('aiButton').disabled=true;
@@ -65,7 +66,7 @@ class Arena extends Phaser.Scene {
   }
   create(){
     play=this;
-    this.running=false;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=0;this.dashReady=0;this.empReady=0;this.invincible=0;this.dashing=0;this.wave=1;this.tactic='assault';this.aiNext=8;this.bossSpawned=false;this.bossDefeated=false;this.serial=0;this.distanceMoved=0;this.lastMove=new Phaser.Math.Vector2(0,-1);
+    this.running=false;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=0;this.dashReady=0;this.empReady=0;this.invincible=0;this.dashing=0;this.wave=1;this.tactic='assault';this.bossSpawned=false;this.bossDefeated=false;this.serial=0;this.distanceMoved=0;this.lastMove=new Phaser.Math.Vector2(0,-1);
     this.bg=this.add.tileSprite(W/2,H/2,W,H,'stars').setTint(0x6b7198).setAlpha(.65).setDepth(-100);
     if(this.textures.exists('nebula'))this.nebula=this.add.image(W*.6,H*.43,'nebula').setDisplaySize(W*1.3,H*1.3).setAlpha(.42).setTint(0x759be3).setDepth(-99);
     this.decor=[];
@@ -76,6 +77,7 @@ class Arena extends Phaser.Scene {
     this.starDust=this.add.particles(0,0,'spark',{x:{min:0,max:W},y:-10,lifespan:9000,speedY:{min:60,max:150},speedX:0,frequency:100,scale:{start:.06,end:.01},alpha:{start:.4,end:0},blendMode:'ADD'}).setDepth(-10);
     this.strategyVisuals=new StrategyVisuals(this,{width:W,height:H,nebula:this.nebula,stars:this.bg,dust:this.starDust,reduced});
     this.enemies=this.physics.add.group();this.bullets=this.physics.add.group({maxSize:150,defaultKey:'laser'});this.hostile=this.physics.add.group({maxSize:180,defaultKey:'redLaser'});this.pickups=this.physics.add.group();
+    this.flight=new FlightTelemetry();this.directorCadence=new DirectorCadence();this.plan=executionPlan('assault',{},false);this.shotsHit=0;this.damageTotal=0;
     this.player=this.physics.add.sprite(W*.5,H*.7,'player').setScale(.67).setDepth(10).setCollideWorldBounds(true);
     this.player.body.setSize(48,48).setOffset(31,15);
     this.physics.world.setBounds(30,65,W-60,H-195);
@@ -91,7 +93,7 @@ class Arena extends Phaser.Scene {
     this.tacticGraphics=this.add.graphics().setDepth(4);this.spawnWarnings=[];
     this.reticle.lineStyle(1.5,0x6ce7ef,.9).strokeCircle(0,0,11).lineBetween(-17,0,-7,0).lineBetween(7,0,17,0).lineBetween(0,-17,0,-7).lineBetween(0,7,0,17);
     this.events.once('shutdown',()=>this.aimInput.destroy());
-    this.physics.add.overlap(this.bullets,this.enemies,(bullet,enemy)=>{if(!bullet.active||!enemy.active)return;bullet.disableBody(true,true);this.hitEnemy(enemy,1);});
+    this.physics.add.overlap(this.bullets,this.enemies,(bullet,enemy)=>{if(!bullet.active||!enemy.active)return;this.shotsHit++;bullet.disableBody(true,true);this.hitEnemy(enemy,1);});
     this.physics.add.overlap(this.player,this.enemies,(_,enemy)=>{if(!this.running||this.paused)return;this.damage(18);if(enemy.kind!=='boss')this.hitEnemy(enemy,2);});
     this.physics.add.overlap(this.player,this.hostile,(_,bullet)=>{if(!this.running||this.paused)return;bullet.disableBody(true,true);this.damage(12);});
     this.physics.add.overlap(this.player,this.pickups,(_,p)=>{if(!this.running||this.paused||!p.active)return;p.destroy();this.cores++;this.score+=75;this.hp=Math.min(100,this.hp+7);this.fx(this.player.x,this.player.y,0xb7fa74,12);this.sfx('shieldUp',.15);if(this.cores===4||this.cores===10)notice('ARMI POTENZIATE · '+(this.cores===4?'DOPPIO':'TRIPLO')+' LASER');});
@@ -106,24 +108,40 @@ class Arena extends Phaser.Scene {
   }
   fitWorld(){this.cameras.main.setViewport(0,0,this.scale.width,this.scale.height);this.cameras.main.setZoom(Math.min(this.scale.width/W,this.scale.height/H));this.cameras.main.centerOn(W/2,H/2);}
   start(){
+    this.flight=new FlightTelemetry();this.directorCadence.reset();this.shotsHit=0;this.damageTotal=0;this.adaptationNext=0;this.recoveryUntil=0;this.tacticChangedAt=0;
     tactical.reset();this.spawnWarnings=[];this.tacticGraphics.clear();this.strategyVisuals.activate('assault',{immediate:true});
     this.aimInput.reset();this.reticle.setVisible(false);this.shotsFired=0;this.lastMove.set(0,-1);
     aiRequest?.abort();aiRequest=null;
     pauseState.reset();clearControls();$('pauseOverlay').hidden=true;$('pause').setAttribute('aria-label','Pausa');
-    this.serial=++runId;this.running=true;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=1;this.dashReady=0;this.empReady=0;this.invincible=1.5;this.dashing=0;this.wave=1;this.tactic='assault';this.aiNext=7;this.bossSpawned=false;this.bossDefeated=false;this.distanceMoved=0;
+    this.serial=++runId;this.running=true;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=1;this.dashReady=0;this.empReady=0;this.invincible=1.5;this.dashing=0;this.wave=1;this.tactic='assault';this.bossSpawned=false;this.bossDefeated=false;this.distanceMoved=0;
     [this.enemies,this.pickups].forEach(g=>g.clear(true,true));[this.bullets,this.hostile].forEach(g=>g.getChildren().forEach(b=>{if(b)b.disableBody(true,true)}));
     this.previewShips.forEach(s=>s.setVisible(false));this.hero.setVisible(false);this.heroShield.setVisible(false);this.player.enableBody(true,W/2,H*.7,true,true);this.player.setAlpha(1);this.player.setRotation(0);this.shield.setVisible(true);this.exhaust.start();this.physics.resume();
+    this.recordFlight();
     $('overlay').classList.add('hidden');$('touchControls').classList.add('playing');$('pause').textContent='Ⅱ';$('objective').textContent='SOPRAVVIVI · ELIMINA NEXUS';$('aiState').textContent='DIRETTORE LOCALE';this.sound.setMute(!soundOn);this.sfx('twoTone',.3);notice('ONDATA 01 · CONTATTO NEMICO');if(selectedProvider==='off')fixedDirector();else this.setTactic('assault','REGOLE BASE · IN ATTESA AI',false);this.hud();focusGame();
   }
   setTactic(key,source,announce=true){
     const changed=this.tactic!==key;this.tactic=key;
+    if(changed)this.tacticChangedAt=this.elapsed;
     if(changed)this.spawnWarnings=[];
     if(this.running)this.strategyVisuals.activate(key);
     $('arena').style.setProperty('--strategy-color',tacticFor(key).css);
     tactical.show(key,source,this.elapsed);
+    this.refreshPlan();
     $('tacticState').textContent='TATTICA: '+tacticFor(key).name;
     $('tacticState').style.color=tacticFor(key).css;
     if(this.running&&announce)notice(`${changed?'CAMBIO TATTICA':'TATTICA CONFERMATA'} · ${tacticFor(key).name} · ${source}`);
+  }
+  recordFlight(){this.flight.record(this.elapsed,{x:this.player.x,y:this.player.y,shots:this.shotsFired??0,hits:this.shotsHit,kills:this.kills,damage:this.damageTotal});}
+  snapshot(){
+    let threats=0;
+    for(const e of this.enemies.getChildren())if(e.active&&Math.hypot(e.x-this.player.x,e.y-this.player.y)<280)threats++;
+    for(const b of this.hostile.getChildren())if(b.active&&Math.hypot(b.x-this.player.x,b.y-this.player.y)<240)threats++;
+    return this.flight.snapshot({elapsed:Math.floor(this.elapsed),health:Math.ceil(this.hp),kills:this.kills,cores:this.cores,movement:Math.round(this.distanceMoved/Math.max(1,this.elapsed)),enemies:this.enemies.countActive(),threats:Math.min(50,threats),currentTactic:['assault','flank','barrage','relief'].indexOf(this.tactic),tacticAge:Math.max(0,Math.floor(this.elapsed-(this.tacticChangedAt??0)))});
+  }
+  refreshPlan(){
+    const s=this.snapshot();this.adaptiveSnapshot=s;
+    this.plan=executionPlan(this.tactic,s,selectedProvider!=='off');
+    tactical.adaptation(this.plan,s);
   }
   drawTactics(){
     const g=this.tacticGraphics.clear(),t=tacticFor(this.tactic);
@@ -142,10 +160,10 @@ class Arena extends Phaser.Scene {
       g.lineStyle(2,warning.color,.85).strokeCircle(warning.x,warning.y,16+(1-progress)*30);
       g.lineBetween(warning.x-8,warning.y,warning.x+8,warning.y).lineBetween(warning.x,warning.y-8,warning.x,warning.y+8);
     }
-    if(this.tactic==='barrage')for(const e of this.enemies.getChildren()){
-      if(e.active&&e.fireAt-this.elapsed<.45&&e.fireAt>this.elapsed){
-        const a=Math.atan2(this.player.y-e.y,this.player.x-e.x);
-        const angles=e.kind==='boss'?[-.6,-.4,-.2,0,.2,.4,.6]:[0];
+    if(this.plan.adaptive)for(const e of this.enemies.getChildren()){
+      if(e.active&&e.aim&&e.fireAt>this.elapsed){
+        const a=Math.atan2(e.aim.y-e.y,e.aim.x-e.x);
+        const angles=e.kind==='boss'?[-.6,-.4,-.2,0,.2,.4,.6]:this.plan.mode==='aimed-volley'&&(e.kind==='heavy'||e.volley)?[-.12,0,.12]:[0];
         g.lineStyle(1.5,t.color,.45);
         for(const offset of angles)g.lineBetween(e.x,e.y,e.x+Math.cos(a+offset)*600,e.y+Math.sin(a+offset)*600);
       }
@@ -159,9 +177,9 @@ class Arena extends Phaser.Scene {
     if(this.enemies.countActive()>26)return;
     const {x,y}=point;
     const e=this.enemies.create(x,y,kind==='heavy'?'heavy':kind==='interceptor'?'interceptor':'enemy').setScale(kind==='heavy'?.85:.65).setDepth(7);
-    e.kind=kind;e.hp=kind==='heavy'?5:kind==='interceptor'?2:3;e.fireAt=this.elapsed+Phaser.Math.FloatBetween(1,3);e.phase=Math.random()*6.28;e.born=this.elapsed;
+    e.kind=kind;e.hp=kind==='heavy'?5:kind==='interceptor'?2:3;e.fireAt=this.elapsed+Phaser.Math.FloatBetween(1,3);e.phase=Math.random()*6.28;e.born=this.elapsed;e.flankSign=x<W/2?-1:1;e.volley=Math.random()<.34;
     e.body.setSize(54,42).setOffset(20,20);
-    this.fx(x,y,0xff5c78,8);
+    this.fx(x,y,tacticFor(this.tactic).color,8);
   }
   spawnBoss(){this.bossSpawned=true;const e=this.enemies.create(W/2,100,'boss').setScale(2.6).setDepth(8);e.kind='boss';e.hp=100;e.maxHp=100;e.fireAt=this.elapsed+1.7;e.phase=0;e.born=this.elapsed;e.body.setSize(60,50).setOffset(15,15);this.boss=e;notice('NEXUS È QUI · DISTRUGGI IL NUCLEO');this.sfx('twoTone',.5);}
   hitEnemy(e,damage){
@@ -171,7 +189,7 @@ class Arena extends Phaser.Scene {
     if(boss){this.bossDefeated=true;if(this.elapsed>=90)this.end(true);else notice('NEXUS DISTRUTTO · RESISTI FINO ALL’ESTRAZIONE');}
     if(!boss&&this.kills%2===0){const p=this.pickups.create(x,y,'power').setScale(.85).setDepth(6);p.body.setSize(28,28);p.life=12;p.setVelocityY(35);this.tweens.add({targets:p,angle:360,duration:4000,repeat:-1});}
   }
-  damage(amount){if(this.invincible>0||!this.running)return;this.hp=Math.max(0,this.hp-amount);this.invincible=.95;this.sfx('shieldDown',.3);this.fx(this.player.x,this.player.y,0xff5577,20);if(!reduced)this.cameras.main.shake(170,.005);if(this.hp<=0)this.end(false);}
+  damage(amount){if(this.invincible>0||!this.running)return;this.damageTotal+=Math.min(this.hp,amount);this.hp=Math.max(0,this.hp-amount);this.invincible=.95;this.sfx('shieldDown',.3);this.fx(this.player.x,this.player.y,0xff5577,20);if(!reduced)this.cameras.main.shake(170,.005);if(this.hp<=0)this.end(false);}
   dash(){if(!this.running||this.paused||this.elapsed<this.dashReady)return;this.dashing=.18;this.dashReady=this.elapsed+2.4;this.invincible=Math.max(this.invincible,.25);this.sfx('laser2',.15);this.fx(this.player.x,this.player.y,0x6ce7ef,18);}
   emp(){if(!this.running||this.paused||this.elapsed<this.empReady)return;this.empReady=this.elapsed+8;const ring=this.add.image(this.player.x,this.player.y,'shield').setScale(.4).setTint(0x6ce7ef).setAlpha(.8).setDepth(25).setBlendMode(Phaser.BlendModes.ADD);this.tweens.add({targets:ring,scale:6,alpha:0,duration:600,onComplete:()=>ring.destroy()});this.hostile.getChildren().forEach(b=>{if(b?.active&&Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<340)b.disableBody(true,true)});[...this.enemies.getChildren()].forEach(e=>{if(Phaser.Math.Distance.Between(e.x,e.y,this.player.x,this.player.y)<340)this.hitEnemy(e,e.kind==='boss'?12:6)});this.sfx('twoTone',.35);if(!reduced)this.cameras.main.shake(120,.004);}
   end(win){if(!this.running)return;this.running=false;this.physics.pause();this.exhaust.stop();this.player.setVelocity(0);if(!win)this.explosion(this.player.x,this.player.y,true);best=Math.max(best,this.score);try{localStorage.setItem('nexus-best',best)}catch{}bestText();$('overlay').classList.remove('hidden');$('touchControls').classList.remove('playing');document.querySelector('.intro-label').innerHTML='<span></span> '+(win?'TRASMISSIONE COMPLETATA':'SEGNALE INTERROTTO');document.querySelector('h1').innerHTML=win?'Sei ancora<br>qui<span>.</span>':'Non è<br>finita<span>.</span>';document.querySelector('.intro p').textContent=`${win?'NEXUS è distrutto. Missione compiuta.':'La flotta NEXUS ha avuto la meglio.'} ${this.score} punti · ${this.kills} nemici · ${Math.floor(this.elapsed)} secondi.`;$('start').innerHTML='Riprova la missione <span>↗</span>';this.sfx(win?'twoTone':'lose',.4);this.hud();}
@@ -186,6 +204,13 @@ class Arena extends Phaser.Scene {
     this.bg.tilePositionY-=dt*14;this.decor.forEach(m=>{m.y+=m.drift*dt;m.rotation+=m.spin*dt;if(m.y>H+80){m.y=-80;m.x=Math.random()*W;}});
     if(!this.running)return;
     this.elapsed+=dt;this.invincible=Math.max(0,this.invincible-dt);this.dashing=Math.max(0,this.dashing-dt);
+    this.recordFlight();
+    if(this.elapsed>=this.adaptationNext){
+      this.adaptationNext=this.elapsed+.5;this.refreshPlan();
+      if(selectedProvider!=='off'&&needsRelief(this.adaptiveSnapshot)&&this.tactic!=='relief'){
+        this.recoveryUntil=this.elapsed+8;this.setTactic('relief','REGOLE · RECUPERO');$('director').textContent='RECUPERO LOCALE · PRESSIONE RIDOTTA';
+      }
+    }
     const {x:dx,y:dy}=controls.movement(touch);if(Math.hypot(dx,dy)>.1){this.lastMove.set(dx,dy).normalize();this.distanceMoved+=dt*340;}
     if(controls.consume('dash'))this.dash();if(controls.consume('emp'))this.emp();
     if(this.dashing>0)this.player.setVelocity(this.lastMove.x*1000,this.lastMove.y*1000);else this.player.setVelocity(dx*340,dy*340);
@@ -202,9 +227,10 @@ class Arena extends Phaser.Scene {
     this.shield.setPosition(this.player.x,this.player.y).setAlpha(this.invincible>0?.6:.1+Math.sin(this.elapsed*3)*.03);
     if(this.elapsed>this.nextFire){this.nextFire=this.elapsed+(this.cores>=10?.14:.19);const angles=this.cores>=10?[-.12,0,.12]:this.cores>=4?[-.045,.045]:[0];angles.forEach(a=>{const mount=gunMount(this.player.x,this.player.y,this.player.rotation,angles.length===2?(a<0?-13:13):0);this.shoot(this.bullets,mount.x,mount.y,mount.angle+a,820);this.shotsFired++;});this.sfx('laser1',.055);}
     if(this.elapsed>this.nextSpawn&&this.elapsed<94){
-      this.nextSpawn=this.elapsed+Math.max(.45,1.35-this.elapsed*.009)*tacticFor(this.tactic).spawnMultiplier;
+      this.nextSpawn=this.elapsed+Math.max(.45,1.35-this.elapsed*.009)*tacticFor(this.tactic).spawnMultiplier*this.plan.spawn;
       const kind=this.elapsed>32&&Math.random()<.3?'heavy':this.tactic==='flank'||Math.random()<.3?'interceptor':'scout';
-      this.spawnWarnings.push({...spawnPoint(this.tactic,Math.random,W,H),kind,color:tacticFor(this.tactic).color,at:this.elapsed});
+      const point=this.plan.adaptive?adaptiveSpawn(this.tactic,this.adaptiveSnapshot,Math.random,W,H):spawnPoint(this.tactic,Math.random,W);
+      this.spawnWarnings.push({...point,kind,color:tacticFor(this.tactic).color,at:this.elapsed});
     }
     this.spawnWarnings=this.spawnWarnings.filter(warning=>{if(this.elapsed-warning.at<.75)return true;this.spawn(warning.kind,warning);return false;});
     this.drawTactics();
@@ -214,14 +240,20 @@ class Arena extends Phaser.Scene {
       if(!e.active)continue;
       let tx=this.player.x,ty=this.player.y;
       if(e.kind==='boss'){tx=W/2+Math.sin(this.elapsed*.7)*380;ty=165;e.setVelocity((tx-e.x)*1.6,(ty-e.y)*1.5);e.rotation=Math.sin(this.elapsed)*.13;}
-      else {if(e.kind==='interceptor'){tx+=Math.sin(this.elapsed*2+e.phase)*150;ty-=110;}if(e.kind==='heavy')ty=Math.min(this.player.y-250,400);const a=Math.atan2(ty-e.y,tx-e.x);const dist=Phaser.Math.Distance.Between(e.x,e.y,tx,ty);const speed=(e.kind==='heavy'?55:e.kind==='interceptor'?125:85)*(1+this.elapsed*.003);e.setVelocity(dist>20?Math.cos(a)*speed:0,dist>20?Math.sin(a)*speed:0);e.rotation=Phaser.Math.Angle.Wrap(a-Math.PI/2);}
-      if(this.elapsed>e.fireAt){e.fireAt=this.elapsed+(e.kind==='boss'?.85:e.kind==='heavy'?1.5:3.2)*tacticFor(this.tactic).fireMultiplier;const a=Math.atan2(this.player.y-e.y,this.player.x-e.x);if(e.kind==='boss'){for(let j=-3;j<=3;j++)this.shoot(this.hostile,e.x,e.y,a+j*.2,190,true);}else this.shoot(this.hostile,e.x,e.y,a,180+this.wave*18,true);}
+      else {({x:tx,y:ty}=enemyIntent(e,this.player,this.player.body.velocity,this.plan,this.elapsed));const a=Math.atan2(ty-e.y,tx-e.x);const dist=Phaser.Math.Distance.Between(e.x,e.y,tx,ty);const speed=(e.kind==='heavy'?55:e.kind==='interceptor'?125:85)*(1+this.elapsed*.003)*this.plan.speed;e.setVelocity(dist>20?Math.cos(a)*speed:0,dist>20?Math.sin(a)*speed:0);e.rotation=Phaser.Math.Angle.Wrap(a-Math.PI/2);}
+      if(this.plan.adaptive&&this.elapsed>=e.fireAt-.55&&!e.aim)e.aim=firingTarget(e,this.player,this.player.body.velocity,this.plan);
+      if(this.elapsed>e.fireAt){
+        const target=this.plan.adaptive&&e.aim?e.aim:this.player,a=Math.atan2(target.y-e.y,target.x-e.x);
+        e.fireAt=this.elapsed+(e.kind==='boss'?.85:e.kind==='heavy'?1.5:3.2)*tacticFor(this.tactic).fireMultiplier*this.plan.fire;e.aim=null;
+        const angles=e.kind==='boss'?[-.6,-.4,-.2,0,.2,.4,.6]:this.plan.mode==='aimed-volley'&&(e.kind==='heavy'||e.volley)?[-.12,0,.12]:[0];
+        for(const offset of angles)this.shoot(this.hostile,e.x,e.y,a+offset,e.kind==='boss'?190:180+this.wave*18,true);
+      }
       if(e.y>H+100||e.x<-150||e.x>W+150)e.destroy();
     }
     [this.bullets,this.hostile].forEach(group=>group.getChildren().forEach(b=>{if(!b?.active)return;b.life-=dt;if(b.life<=0||b.x<0||b.x>W||b.y<0||b.y>H)b.disableBody(true,true)}));
     this.pickups.getChildren().forEach(p=>{if(!p?.active)return;p.life-=dt;if(p.life<=0)p.destroy();else if(Phaser.Math.Distance.Between(p.x,p.y,this.player.x,this.player.y)<130)this.physics.moveToObject(p,this.player,230);});
     if(this.elapsed>=90){if(this.bossDefeated)this.end(true);else{$('objective').textContent='DISTRUGGI NEXUS PER FUGGIRE';if(this.elapsed>150)this.end(false);}}
-    if(selectedProvider!=='off'&&this.elapsed>=this.aiNext){this.aiNext=this.elapsed+24;requestDirector();}
+    if(selectedProvider!=='off'){const reason=this.directorCadence.due(this.elapsed,this.adaptiveSnapshot);if(reason)requestDirector(reason);}
     this.hud();
   }
 }
@@ -229,34 +261,38 @@ class Arena extends Phaser.Scene {
 const controls=new GameInput({target:window,enabled:()=>!!play?.running,onMovement:()=>pauseState.movementPressed(),onPause:togglePause});
 const game=new Phaser.Game({type:Phaser.AUTO,parent:'game',backgroundColor:'#080d1b',width:W,height:H,input:{keyboard:false},scale:{mode:Phaser.Scale.RESIZE,width:'100%',height:'100%'},render:{antialias:true,roundPixels:false},physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},audio:{disableWebAudio:false},scene:[Arena]});
 
-async function requestDirector(){
+async function requestDirector(trigger='richiesta manuale'){
   if(selectedProvider==='off'){fixedDirector();return;}
   if(aiRequest||!play?.running||play.paused)return;
+  if(!play.directorCadence.canRequest(play.elapsed)){if(trigger==='richiesta manuale')notice('Il direttore sta osservando: attendi almeno 8 secondi fra le richieste.');return;}
+  play.refreshPlan();const sentSnapshot=play.adaptiveSnapshot;
+  play.directorCadence.mark(play.elapsed,sentSnapshot);
   const request=new AbortController();aiRequest=request;
   const serial=play.serial,revision=aiRevision;
   const timeout=setTimeout(()=>request.abort(),10000);
   $('aiState').textContent='NEXUS STA VALUTANDO';
   $('aiState').title='Richiesta API in corso. La tattica mostrata resta attiva fino alla risposta.';
-  tactical.request();
+  tactical.request(trigger);
   try{
-    const result=await fetch('/api/director',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:selectedProvider,elapsed:Math.floor(play.elapsed),health:Math.ceil(play.hp),kills:play.kills,cores:play.cores,movement:Math.round(play.distanceMoved/Math.max(1,play.elapsed)),enemies:play.enemies.countActive()}),signal:request.signal});
+    const result=await fetch('/api/director',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:selectedProvider,...sentSnapshot}),signal:request.signal});
     const data=await result.json();
     if(!play.running||play.serial!==serial||revision!==aiRevision)return;
     if(['huggingface','typesafe'].includes(data.source)&&['assault','flank','barrage','relief'].includes(data.tactic)){
       const source=data.source==='typesafe'?'JEV':'QWEN';
-      play.setTactic(data.tactic,source);tactical.response(source,data.latencyMs);
+      const resolved=resolveTactic(data.tactic,play.snapshot(),play.elapsed,play.recoveryUntil),protectedRecovery=resolved.protectedRecovery;
+      play.setTactic(resolved.tactic,protectedRecovery?source+' · RECUPERO PROTETTO':source);tactical.response(source,data.latencyMs,protectedRecovery?data.tactic:null);
       $('aiState').textContent=data.source==='typesafe'?'JEV ATTIVO':'HUGGING FACE ATTIVO';
       $('aiState').title=`${data.source==='typesafe'?'Jev':'Qwen'} · ${data.latencyMs??'?'} ms`+(Number.isFinite(data.confidence)?` · confidenza ${Math.round(data.confidence*100)}%`:'');
-      $('director').textContent='NEXUS: '+data.message;
+      $('director').textContent=protectedRecovery?'RECUPERO PROTETTO · PRESSIONE RIDOTTA':'NEXUS: '+data.message;
     } else {
       $('aiState').title='Nessuna decisione API valida: la tattica è gestita dalle regole locali.';
       const provider=data.provider==='typesafe'?'TYPESAFE':'HF';
       const labels={missing_token:provider+'_KEY DA CONFIGURARE',insufficient_credits:provider+' · CREDITO ESAURITO',invalid_token:provider+' · CHIAVE NON VALIDA',rate_limited:'AI · LIMITE RICHIESTE'};
       $('aiState').textContent=labels[data.reason]||'DIRETTORE LOCALE · API NON DISPONIBILE';
       if(data.reason==='missing_token')$('aiState').textContent=data.provider==='typesafe'?'TYPESAFE_API_KEY DA CONFIGURARE':'HF_TOKEN DA CONFIGURARE';
-      play.setTactic(play.hp<30?'relief':['assault','flank','barrage'][Math.floor(play.elapsed/24)%3],'REGOLE LOCALI');tactical.failure();
+      play.setTactic(play.elapsed<play.recoveryUntil?'relief':localTactic(play.snapshot()),'REGOLE LOCALI');tactical.failure();
     }
-  }catch{if(play?.running&&play.serial===serial&&revision===aiRevision){$('aiState').textContent='DIRETTORE LOCALE · API NON DISPONIBILE';$('aiState').title='Richiesta non riuscita: nessuna nuova decisione AI applicata.';play.setTactic(play.tactic,'REGOLE LOCALI');tactical.failure();}}
+  }catch{if(play?.running&&play.serial===serial&&revision===aiRevision){$('aiState').textContent='DIRETTORE LOCALE · API NON DISPONIBILE';$('aiState').title='Richiesta non riuscita: nessuna nuova decisione AI applicata.';play.setTactic(play.elapsed<play.recoveryUntil?'relief':localTactic(play.snapshot()),'REGOLE LOCALI');tactical.failure();}}
   finally{clearTimeout(timeout);if(aiRequest===request)aiRequest=null;}
 }
 function togglePause(){if(play?.running)pauseState.toggle();}
@@ -273,10 +309,10 @@ $('aiProvider').addEventListener('change',()=>{
   $('director').textContent='NEXUS OSSERVA. NUOVA TATTICA IN ATTESA.';
   $('aiState').textContent='DIRETTORE SELEZIONATO';
   $('aiState').title='Il direttore selezionato non ha ancora restituito una decisione.';
-  if(play?.running){play.aiNext=play.elapsed+.2;notice('Direttore aggiornato: nuova tattica in arrivo.');focusGame();}
+  if(play?.running){play.directorCadence.reset();notice('Direttore aggiornato: nuova tattica in arrivo.');focusGame();}
   else notice('Direttore selezionato. Avvia la missione per provarlo.');
 });
-$('aiButton').addEventListener('click',()=>{if(play?.running&&!play.paused){play.aiNext=play.elapsed+24;requestDirector();}else notice('Avvia o riprendi la missione per interrogare il direttore.');});
+$('aiButton').addEventListener('click',()=>{if(play?.running&&!play.paused)requestDirector();else notice('Avvia o riprendi la missione per interrogare il direttore.');});
 $('touchDash').addEventListener('pointerdown',e=>{e.preventDefault();play?.dash()});$('touchEmp').addEventListener('pointerdown',e=>{e.preventDefault();play?.emp()});
 const stick=$('stick');let stickId=null;
 function moveStick(e){if(e.pointerId!==stickId)return;const r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y),f=Math.min(l,35)/Math.max(1,l);touch.x=x*f/35;touch.y=y*f/35;$('stickThumb').style.transform=`translate(${x*f}px,${y*f}px)`;}

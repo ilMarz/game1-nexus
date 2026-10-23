@@ -47,7 +47,20 @@ Jev riceve la telemetria numerica e una domanda Choice con quattro alternative: 
 
 Fonti: [API nativa TypeSafe](https://docs.typesafe.ai/api/system-one), [Choice](https://docs.typesafe.ai/primitives/choice), [modelli](https://docs.typesafe.ai/models).
 
-Il modello riceve solo telemetria numerica della partita. Ogni 24 secondi propone `assault`, `flank`, `barrage` o `relief`; Qwen genera anche una comunicazione italiana. Solo risposte valide sono applicate. L'interfaccia mostra **HUGGING FACE ATTIVO** esclusivamente dopo una risposta reale Qwen. Senza token o durante errori resta disponibile un direttore a regole. Non c'è inferenza ML locale.
+Il modello riceve solo telemetria numerica della partita. La prima lettura automatica arriva dopo 4 secondi; poi rivaluta ogni 12 secondi o dopo cambiamenti rilevanti, con almeno 8 secondi fra le richieste. Propone `assault`, `flank`, `barrage` o `relief`; Qwen genera anche una comunicazione italiana. Solo risposte valide sono applicate. L'interfaccia mostra **HUGGING FACE ATTIVO** esclusivamente dopo una risposta reale Qwen. Senza token o durante errori resta disponibile un direttore a regole, dichiarato nel pannello. Non c'è inferenza ML locale. La Function accetta al massimo 8 richieste al minuto per indirizzo e per istanza.
+
+### Adattamento al modo di giocare
+
+Una finestra mobile di 8 secondi misura gli spostamenti reali della nave, non solo i tasti premuti: posizione, velocità firmata, percorso totale, prevedibilità della rotta, tempo fermo e ai bordi, danni subiti, eliminazioni, precisione dei laser e minacce vicine. Ripararsi non cancella i danni recenti. La telemetria viene azzerata a ogni partita e non accumula movimento durante la pausa.
+
+Jev e Qwen ricevono gli stessi segnali e il contesto della tattica attuale. L’esecuzione della tattica viene aggiornata ogni mezzo secondo dal gioco:
+
+- **Assalto:** rinforzi sulla corsia della nave e inseguimento che può anticiparne lo spostamento; pressione leggermente maggiore se il giocatore elimina rapidamente i nemici con scafo alto.
+- **Laterale:** due angoli di accerchiamento. Su una rotta prevedibile gli intercettori puntano avanti; gli ingressi laterali seguono il movimento e mantengono almeno 300 unità di distanza al momento dell’annuncio.
+- **Raffica:** tiro anticipato sulle rotte prevedibili e salve a ventaglio da unità selezionate. La mira si fissa 550 ms prima del colpo e viene disegnata: un cambio di rotta permette di evitarla.
+- **Tregua:** rinforzi più lontani e diradati, inseguimento al 80% e intervallo di tiro aumentato del 35%. I proiettili già lanciati restano attivi.
+
+Una protezione locale impone recupero quando lo scafo scende al 25%, i danni nella finestra raggiungono 35, oppure ci sono almeno 12 minacce vicine. Il recupero locale dura almeno 8 secondi; una risposta aggressiva tardiva non lo annulla. Il pannello distingue **REGOLE · RECUPERO**, la proposta AI e un eventuale **RECUPERO PROTETTO**. I segnali e la descrizione dell’esecuzione sono calcolati dal gioco, non sono una spiegazione del ragionamento interno del modello. Con **AI disattivata** restano assalto fisso, inseguimento classico e nessuna protezione adattiva.
 
 Il limiter della Function è in memoria e offre solo una protezione per singola istanza: non è un limite di spesa globale. Prima di esporre il gioco a traffico elevato configurare limiti del provider e un rate limit condiviso/Vercel Firewall. Il prototipo non include autenticazione.
 
@@ -57,8 +70,8 @@ Il pannello nell’arena mostra la tattica effettiva, chi l’ha scelta, le ulti
 
 - **Assalto frontale, arancione:** frecce dall’alto e nemici che inseguono il giocatore.
 - **Attacco laterale, viola:** frecce da sinistra e destra, con rinforzi dai fianchi.
-- **Raffica, rosa:** intervallo di tiro ridotto del 30%; linee di mira visibili negli ultimi 450 ms prima del colpo.
-- **Tregua, verde:** intervallo fra rinforzi aumentato del 55%; i nemici già presenti continuano ad attaccare.
+- **Raffica, rosa:** intervallo di tiro ridotto del 30%, salve e linee che anticipano il tiro.
+- **Tregua, verde:** rinforzi diradati e nemici rallentati; quelli già presenti continuano ad attaccare.
 
 I cerchi nell’arena anticipano di 750 ms la posizione reale di un nuovo rinforzo. La pausa congela anche questo preavviso. Un cambio di tattica cancella gli arrivi ancora annunciati; i nemici già presenti rimangono. Colori, frecce e testi derivano dalla stessa configurazione usata dalla simulazione.
 
