@@ -14,3 +14,7 @@ test('leaving the canvas keeps the last aim; restart and destroy clear it',()=>{
   s.input.reset();assert.equal(s.input.position,null);s.emit(s.surface,'pointermove');s.input.destroy();s.emit(s.surface,'pointermove');assert.equal(s.input.position,null);
 });
 test('pointer coordinates account for canvas offset and CSS scaling before camera conversion',()=>{assert.deepEqual(surfacePoint(410,230,{left:10,top:30,width:800,height:400},1600,800),{x:800,y:400});});
+test('touching the canvas cannot override joystick orientation with a mouse target',()=>{
+  const s=setup();s.emit(s.surface,'pointerdown',{pointerType:'touch'});s.emit(s.surface,'pointermove',{pointerType:'touch'});assert.equal(s.input.position,null);
+  s.emit(s.surface,'pointermove',{pointerType:'mouse'});assert.deepEqual(s.input.position,{clientX:500,clientY:200});
+});

@@ -3,6 +3,7 @@ import {PauseState} from './pause-state.js';
 import {GameInput} from './game-input.js';
 import {headingToTarget,gunMount} from './ship-aim.js';
 import {PointerAim,surfacePoint} from './pointer-aim.js';
+import {VirtualStick} from './virtual-stick.js';
 import {tacticFor,spawnPoint} from './tactics.js';
 import {TacticalDisplay} from './tactical-display.js';
 import {StrategyVisuals} from './strategy-visuals.js';
@@ -12,6 +13,7 @@ import './style.css';
 import './enhancements.css';
 import './pause.css';
 import './director.css';
+import './touch-controls.css';
 
 const $ = id => document.getElementById(id);
 const tactical=new TacticalDisplay($('tactical'));
@@ -23,12 +25,20 @@ $('aiProvider').value=selectedProvider;
 let best=0; try { best=Number(localStorage.getItem('nexus-best')||0); } catch {}
 const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const touch={x:0,y:0};
+const touchAim={x:0,y:-1,active:false};let movementStick,orientationStick;
+const coarsePointer=matchMedia('(any-pointer:coarse)');
+function updateTouchUI(){
+  const mobile=coarsePointer.matches||new URLSearchParams(location.search).has('touchControls');document.body.classList.toggle('touch-ui',mobile);
+  const label=mobile?'Arena: joystick sinistro per muoverti, destro per orientarti. Fuoco automatico. Pulsanti EMP e scatto.':'Arena: WASD o frecce per muoverti, mouse per mirare. Fuoco automatico continuo.';
+  $('game').setAttribute('aria-label',label);$('game').querySelector('canvas')?.setAttribute('aria-label',label);
+}
+coarsePointer.addEventListener('change',updateTouchUI);updateTouchUI();
 const debugControls=new URLSearchParams(location.search).has('debugControls');
 let movementDebug;
 if(debugControls){movementDebug=document.createElement('output');movementDebug.id='movementDebug';Object.assign(movementDebug.style,{position:'absolute',top:'50px',left:'20px',zIndex:'3',color:'#b7fa74',background:'#080f18',padding:'8px',font:'12px monospace',pointerEvents:'none'});$('arena').append(movementDebug);}
 let noticeTimer;
 function focusGame(){game.canvas.focus({preventScroll:true});}
-function clearControls(){touch.x=touch.y=0;stickId=null;$('stickThumb').style.transform='';controls.clear();}
+function clearControls(){movementStick?.clear();orientationStick?.clear();touch.x=touch.y=0;controls.clear();}
 const pauseState=new PauseState((paused,automatic)=>{
   play.paused=paused;
   play.player.setVelocity(0);
@@ -86,9 +96,9 @@ class Arena extends Phaser.Scene {
     this.bursts=this.add.particles(0,0,'spark',{lifespan:{min:180,max:500},speed:{min:60,max:260},scale:{start:.3,end:0},alpha:{start:1,end:0},emitting:false,blendMode:'ADD',maxParticles:350}).setDepth(30);
     this.anims.create({key:'explosion',frames:Array.from({length:20},(_,i)=>({key:'fire'+i})),frameRate:35,hideOnComplete:true});
     game.canvas.tabIndex=0;
-    game.canvas.setAttribute('aria-label','Arena: WASD o frecce per muoverti, mouse per mirare. Fuoco automatico continuo.');
+    updateTouchUI();
     game.canvas.addEventListener('pointerdown',focusGame);
-    this.aimInput=new PointerAim({surface:game.canvas,enabled:()=>this.running,onInteract:()=>{pauseState.movementPressed();focusGame();}});
+    this.aimInput=new PointerAim({surface:game.canvas,enabled:()=>this.running&&!this.paused,onInteract:()=>{pauseState.movementPressed();focusGame();},onAim:()=>{touchAim.active=false;}});
     this.reticle=this.add.graphics().setDepth(40).setVisible(false);
     this.tacticGraphics=this.add.graphics().setDepth(4);this.spawnWarnings=[];
     this.reticle.lineStyle(1.5,0x6ce7ef,.9).strokeCircle(0,0,11).lineBetween(-17,0,-7,0).lineBetween(7,0,17,0).lineBetween(0,-17,0,-7).lineBetween(0,7,0,17);
@@ -110,7 +120,7 @@ class Arena extends Phaser.Scene {
   start(){
     this.flight=new FlightTelemetry();this.directorCadence.reset();this.shotsHit=0;this.damageTotal=0;this.adaptationNext=0;this.recoveryUntil=0;this.tacticChangedAt=0;
     tactical.reset();this.spawnWarnings=[];this.tacticGraphics.clear();this.strategyVisuals.activate('assault',{immediate:true});
-    this.aimInput.reset();this.reticle.setVisible(false);this.shotsFired=0;this.lastMove.set(0,-1);
+    this.aimInput.reset();touchAim.active=false;touchAim.x=0;touchAim.y=-1;this.reticle.setVisible(false);this.shotsFired=0;this.lastMove.set(0,-1);
     aiRequest?.abort();aiRequest=null;
     pauseState.reset();clearControls();$('pauseOverlay').hidden=true;$('pause').setAttribute('aria-label','Pausa');
     this.serial=++runId;this.running=true;this.paused=false;this.elapsed=0;this.hp=100;this.score=0;this.kills=0;this.cores=0;this.nextFire=0;this.nextSpawn=1;this.dashReady=0;this.empReady=0;this.invincible=1.5;this.dashing=0;this.wave=1;this.tactic='assault';this.bossSpawned=false;this.bossDefeated=false;this.distanceMoved=0;
@@ -192,7 +202,7 @@ class Arena extends Phaser.Scene {
   damage(amount){if(this.invincible>0||!this.running)return;this.damageTotal+=Math.min(this.hp,amount);this.hp=Math.max(0,this.hp-amount);this.invincible=.95;this.sfx('shieldDown',.3);this.fx(this.player.x,this.player.y,0xff5577,20);if(!reduced)this.cameras.main.shake(170,.005);if(this.hp<=0)this.end(false);}
   dash(){if(!this.running||this.paused||this.elapsed<this.dashReady)return;this.dashing=.18;this.dashReady=this.elapsed+2.4;this.invincible=Math.max(this.invincible,.25);this.sfx('laser2',.15);this.fx(this.player.x,this.player.y,0x6ce7ef,18);}
   emp(){if(!this.running||this.paused||this.elapsed<this.empReady)return;this.empReady=this.elapsed+8;const ring=this.add.image(this.player.x,this.player.y,'shield').setScale(.4).setTint(0x6ce7ef).setAlpha(.8).setDepth(25).setBlendMode(Phaser.BlendModes.ADD);this.tweens.add({targets:ring,scale:6,alpha:0,duration:600,onComplete:()=>ring.destroy()});this.hostile.getChildren().forEach(b=>{if(b?.active&&Phaser.Math.Distance.Between(b.x,b.y,this.player.x,this.player.y)<340)b.disableBody(true,true)});[...this.enemies.getChildren()].forEach(e=>{if(Phaser.Math.Distance.Between(e.x,e.y,this.player.x,this.player.y)<340)this.hitEnemy(e,e.kind==='boss'?12:6)});this.sfx('twoTone',.35);if(!reduced)this.cameras.main.shake(120,.004);}
-  end(win){if(!this.running)return;this.running=false;this.physics.pause();this.exhaust.stop();this.player.setVelocity(0);if(!win)this.explosion(this.player.x,this.player.y,true);best=Math.max(best,this.score);try{localStorage.setItem('nexus-best',best)}catch{}bestText();$('overlay').classList.remove('hidden');$('touchControls').classList.remove('playing');document.querySelector('.intro-label').innerHTML='<span></span> '+(win?'TRASMISSIONE COMPLETATA':'SEGNALE INTERROTTO');document.querySelector('h1').innerHTML=win?'Sei ancora<br>qui<span>.</span>':'Non è<br>finita<span>.</span>';document.querySelector('.intro p').textContent=`${win?'NEXUS è distrutto. Missione compiuta.':'La flotta NEXUS ha avuto la meglio.'} ${this.score} punti · ${this.kills} nemici · ${Math.floor(this.elapsed)} secondi.`;$('start').innerHTML='Riprova la missione <span>↗</span>';this.sfx(win?'twoTone':'lose',.4);this.hud();}
+  end(win){if(!this.running)return;this.running=false;clearControls();this.physics.pause();this.exhaust.stop();this.player.setVelocity(0);if(!win)this.explosion(this.player.x,this.player.y,true);best=Math.max(best,this.score);try{localStorage.setItem('nexus-best',best)}catch{}bestText();$('overlay').classList.remove('hidden');$('touchControls').classList.remove('playing');document.querySelector('.intro-label').innerHTML='<span></span> '+(win?'TRASMISSIONE COMPLETATA':'SEGNALE INTERROTTO');document.querySelector('h1').innerHTML=win?'Sei ancora<br>qui<span>.</span>':'Non è<br>finita<span>.</span>';document.querySelector('.intro p').textContent=`${win?'NEXUS è distrutto. Missione compiuta.':'La flotta NEXUS ha avuto la meglio.'} ${this.score} punti · ${this.kills} nemici · ${Math.floor(this.elapsed)} secondi.`;$('start').innerHTML='Riprova la missione <span>↗</span>';this.sfx(win?'twoTone':'lose',.4);this.hud();}
   hud(){
     if(movementDebug){const input=controls.movement(touch);movementDebug.textContent=`NAVICELLA x=${this.player.x.toFixed(1)} y=${this.player.y.toFixed(1)} | ROT=${Phaser.Math.RadToDeg(this.player.rotation).toFixed(1)}° | INPUT x=${input.x.toFixed(2)} y=${input.y.toFixed(2)} | COLPI=${this.shotsFired??0} | ${this.paused?'PAUSA':'ATTIVO'}`;}
     $('health').style.width=this.hp+'%';$('health').style.background=this.hp<30?'#ff657e':'#b7fa74';$('healthText').textContent=Math.ceil(this.hp);$('score').textContent=String(this.score).padStart(5,'0');const remain=Math.max(0,Math.ceil(90-this.elapsed));$('timer').textContent=String(Math.floor(remain/60)).padStart(2,'0')+':'+String(remain%60).padStart(2,'0');$('wave').textContent=this.boss?.active?`NEXUS ${Math.ceil(this.boss.hp)}%`:`ONDATA 0${Math.min(3,this.wave)}`;$('dashMeter').style.width=Phaser.Math.Clamp(1-(this.dashReady-this.elapsed)/2.4,0,1)*100+'%';$('empMeter').style.width=Phaser.Math.Clamp(1-(this.empReady-this.elapsed)/8,0,1)*100+'%';
@@ -215,7 +225,10 @@ class Arena extends Phaser.Scene {
     if(controls.consume('dash'))this.dash();if(controls.consume('emp'))this.emp();
     if(this.dashing>0)this.player.setVelocity(this.lastMove.x*1000,this.lastMove.y*1000);else this.player.setVelocity(dx*340,dy*340);
     const aim=this.aimInput.position;
-    if(aim){
+    if(touchAim.active){
+      this.player.rotation=Math.atan2(touchAim.x,-touchAim.y);
+      this.reticle.setPosition(this.player.x+touchAim.x*180,this.player.y+touchAim.y*180).setVisible(true);
+    }else if(aim){
       const screen=surfacePoint(aim.clientX,aim.clientY,game.canvas.getBoundingClientRect(),this.scale.width,this.scale.height);
       const target=this.cameras.main.getWorldPoint(screen.x,screen.y);
       this.player.rotation=headingToTarget(this.player.x,this.player.y,target.x,target.y,this.player.rotation);
@@ -314,9 +327,10 @@ $('aiProvider').addEventListener('change',()=>{
 });
 $('aiButton').addEventListener('click',()=>{if(play?.running&&!play.paused)requestDirector();else notice('Avvia o riprendi la missione per interrogare il direttore.');});
 $('touchDash').addEventListener('pointerdown',e=>{e.preventDefault();play?.dash()});$('touchEmp').addEventListener('pointerdown',e=>{e.preventDefault();play?.emp()});
-const stick=$('stick');let stickId=null;
-function moveStick(e){if(e.pointerId!==stickId)return;const r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y),f=Math.min(l,35)/Math.max(1,l);touch.x=x*f/35;touch.y=y*f/35;$('stickThumb').style.transform=`translate(${x*f}px,${y*f}px)`;}
-stick.addEventListener('pointerdown',e=>{e.preventDefault();stickId=e.pointerId;stick.setPointerCapture(e.pointerId);moveStick(e);});stick.addEventListener('pointermove',moveStick);['pointerup','pointercancel','lostpointercapture'].forEach(event=>stick.addEventListener(event,()=>{stickId=null;touch.x=touch.y=0;$('stickThumb').style.transform='';}));
+movementStick=new VirtualStick({surface:$('stick'),thumb:$('stickThumb'),enabled:()=>!!play?.running&&!play.paused,onInteract:focusGame,onChange:v=>{touch.x=v.x;touch.y=v.y;}});
+orientationStick=new VirtualStick({surface:$('aimStick'),thumb:$('aimStickThumb'),enabled:()=>!!play?.running&&!play.paused,onInteract:focusGame,onChange:v=>{
+  const length=Math.hypot(v.x,v.y);if(length>.01){touchAim.x=v.x/length;touchAim.y=v.y/length;touchAim.active=true;}
+}});
 function pauseForFocus(){clearControls();if(play?.running)pauseState.pause(true);}
 window.addEventListener('blur',pauseForFocus);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseForFocus();});

@@ -2,11 +2,11 @@ export function surfacePoint(clientX,clientY,rect,width,height){
   return {x:(clientX-rect.left)*width/Math.max(1,rect.width),y:(clientY-rect.top)*height/Math.max(1,rect.height)};
 }
 export class PointerAim {
-  constructor({surface,enabled,onInteract}){
+  constructor({surface,enabled,onInteract,onAim=()=>{}}){
     this.position=null;
-    this.move=event=>{if(enabled())this.position={clientX:event.clientX,clientY:event.clientY};};
+    this.move=event=>{if(enabled()&&event.pointerType!=='touch'){this.position={clientX:event.clientX,clientY:event.clientY};onAim();}};
     this.down=event=>{
-      if(event.button!==0||!enabled())return;
+      if(event.button!==0||event.pointerType==='touch'||!enabled())return;
       onInteract();this.move(event);event.preventDefault();
     };
     this.surface=surface;

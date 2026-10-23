@@ -1,0 +1,12 @@
+#touchControls{left:max(20px,env(safe-area-inset-left));right:max(20px,env(safe-area-inset-right));bottom:max(115px,calc(env(safe-area-inset-bottom) + 95px));grid-template-columns:1fr 1fr;align-items:end;gap:20px;user-select:none;-webkit-user-select:none;touch-action:none}
+.touch-pad{display:flex;flex-direction:column;align-items:center;gap:9px;pointer-events:none;justify-self:start}.touch-pad.aim-pad{justify-self:end;--stick-color:#b7fa74}.touch-pad.move-pad{--stick-color:#6ce7ef}.touch-label{font:9px monospace;letter-spacing:2px;color:var(--stick-color);text-shadow:0 1px 5px #000}
+#touchControls .virtual-stick{width:108px;height:108px;position:relative;pointer-events:auto;touch-action:none;border:1px solid var(--stick-color);border-radius:50%;background:#0b182ab3;box-shadow:0 4px 24px #0005,inset 0 0 22px #ffffff04;opacity:.75}
+#touchControls .virtual-stick:before{content:"";position:absolute;inset:18px;border:1px dashed #ffffff25;border-radius:50%;pointer-events:none}
+#touchControls .virtual-stick.is-active{opacity:1;box-shadow:0 0 22px #6ce7ef25,inset 0 0 22px #ffffff08}
+#touchControls .stick-thumb{position:absolute;left:50%;top:50%;margin:-19px 0 0 -19px;width:38px;height:38px;border:1px solid var(--stick-color);background:#ffffff18;border-radius:50%;pointer-events:none}
+#touchControls .touch-actions{position:absolute;right:0;bottom:150px;display:flex;gap:10px;pointer-events:none}
+#touchControls .touch-actions button{width:46px;height:46px;padding:0;font:10px monospace;background:#101e2dd9;pointer-events:auto;touch-action:none}
+body.touch-ui #touchControls.playing{display:grid}body.touch-ui #footerHint{display:none}
+body.touch-ui .desktop-controls,body:not(.touch-ui) .mobile-controls{display:none}.mobile-controls{font:10px/1.6 monospace;color:#b6c6cd;margin-top:20px}
+@media(max-height:500px){#touchControls{bottom:max(92px,env(safe-area-inset-bottom));left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right))}#touchControls .virtual-stick{width:86px;height:86px}#touchControls .touch-actions{bottom:117px}.touch-label{font-size:8px;letter-spacing:1px}.touch-pad{gap:6px}}
+@media(prefers-reduced-motion:reduce){#touchControls .virtual-stick{transition:none}}
