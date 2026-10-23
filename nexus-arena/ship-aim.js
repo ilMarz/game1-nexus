@@ -1,5 +1,5 @@
-export function headingToCenter(x,y,centerX,centerY,fallback=0){
-  const dx=centerX-x,dy=centerY-y;
+export function headingToTarget(x,y,targetX,targetY,fallback=0){
+  const dx=targetX-x,dy=targetY-y;
   // At the target itself, retain the last direction instead of snapping or jittering.
   if(Math.hypot(dx,dy)<1)return fallback;
   return Math.atan2(dx,-dy);
