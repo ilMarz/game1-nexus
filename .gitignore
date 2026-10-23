@@ -1,0 +1,14 @@
+# Anteprime di verifica locali
+nexus-arena/anteprima.png
+nexus-arena/pausa-corretta.png
+nexus-arena/jev-direttore.png
+
+# Credenziali e output locali (anche per eventuali nuovi sottoprogetti)
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+.vercel/
+.openai/
+*.log
