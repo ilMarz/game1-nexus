@@ -34,7 +34,7 @@ test('arieti inflict siege damage and knights counter them; arrows resist siege 
   const knight=b.spawn('knight','red',900,380),archer=b.spawn('archer','red',900,380);let health=ram.hp;b.damage(knight,ram);assert.equal(health-ram.hp,TROOPS.knight.damage*2);health=ram.hp;b.damage(archer,ram);assert.ok(health-ram.hp<4);
 });
 test('enemy recruitment pays normal costs and barracks destruction suspends its training',()=>{
-  const b=new SiegeBattle();b.phase='combat';b.externalCommander=true;b.applyEnemyPlan({passage:'south_ford',composition:'archers',objective:'economy',maneuver:'flank',development:'train_archer'});const gold=b.enemyGold;b.tick(.05);assert.equal(b.enemyQueue.length,1);assert.equal(b.enemyGold,gold-TROOPS.archer.gold);assert.equal(b.units.filter(u=>u.team==='red').length,8);
+  const b=new SiegeBattle();b.phase='combat';b.externalCommander=true;b.applyEnemyPlan({passage:'south_ford',composition:'archers',objective:'economy',maneuver:'flank',development:'train_archer'});const gold=b.enemyGold;b.tick(.05);assert.equal(b.enemyQueue.length,1);assert.equal(b.enemyGold,gold-TROOPS.archer.gold);assert.equal(b.units.filter(u=>u.team==='red').length,14);
   b.buildings=b.buildings.filter(b=>b.team!=='red'||b.type!=='barracks');const remaining=b.enemyQueue[0].remaining;advance(b,5);assert.equal(b.enemyQueue[0].remaining,remaining);
 });
 

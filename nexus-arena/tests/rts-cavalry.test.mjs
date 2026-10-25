@@ -9,8 +9,8 @@ test('mounted knights replace the old roster slot on both teams and train at the
   assert.equal(TROOPS.pike,undefined);
   for(const team of ['blue','red']){
     const b=new SiegeBattle(),gold=team==='blue'?'gold':'enemyGold',wood=team==='blue'?'wood':'enemyWood',queue=team==='blue'?b.queue:b.enemyQueue;
-    assert.equal(b.units.filter(u=>u.team===team&&u.type==='knight').length,2);
-    assert.equal(b.train('knight',true,team),null);assert.equal(b[gold],320-60);assert.equal(b[wood],220-20);assert.equal(queue[0].remaining,5);
+    assert.equal(b.units.filter(u=>u.team===team&&u.type==='knight').length,team==='red'?3:2);
+    assert.equal(b.train('knight',true,team),null);assert.equal(b[gold],(team==='red'?600:320)-60);assert.equal(b[wood],(team==='red'?360:220)-20);assert.equal(queue[0].remaining,5);
     assert.ok(TROOPS.knight.speed>TROOPS.infantry.speed);assert.ok(TROOPS.knight.hp>TROOPS.infantry.hp);
   }
 });

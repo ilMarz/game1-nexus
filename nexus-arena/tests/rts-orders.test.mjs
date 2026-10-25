@@ -16,7 +16,7 @@ test('defend recalls only automatic troops, attack reallocates more force, wait 
   b.setAdvisorOrder('wait');const units=b.units.filter(u=>u.team==='blue'&&u!==manual),positions=units.map(u=>[u.x,u.y]);advance(b,2);assert.deepEqual(units.map(u=>[u.x,u.y]),positions);assert.ok(units.every(u=>u.order.mode==='hold'));assert.equal(manual.order,order);
 });
 test('manual autonomy remains default and model development cannot spend without delegation',()=>{
-  const b=battle(),gold=b.gold,wood=b.wood;b.applyAllyPlan({...plan,development:'train_ram'});advance(b,1);assert.equal(b.advisorOrder,'balanced');assert.equal(b.gold,gold);assert.equal(b.wood,wood);assert.equal(b.queue.length,0);assert.equal(b.buildings.length,8);
+  const b=battle(),gold=b.gold,wood=b.wood;b.applyAllyPlan({...plan,development:'train_ram'});advance(b,1);assert.equal(b.advisorOrder,'balanced');assert.equal(b.gold,gold);assert.equal(b.wood,wood);assert.equal(b.queue.length,0);assert.equal(b.buildings.filter(e=>e.team==='blue').length,4);
 });
 test('development trains once per accepted plan, pays costs, and takes real training time',()=>{
   const b=battle();b.setAdvisorOrder('develop');b.applyAllyPlan({...plan,development:'train_archer'});const gold=b.gold,wood=b.wood;b.tick(.05);assert.equal(b.gold,gold-TROOPS.archer.gold);assert.equal(b.wood,wood-TROOPS.archer.wood);assert.equal(b.queue[0].source,'advisor');advance(b,1);assert.equal(b.queue.length,1);assert.equal(b.population,8);advance(b,3.1);assert.equal(b.queue.length,0);assert.equal(b.population,9);
@@ -25,10 +25,10 @@ test('development creates a legal building, spends once, and waits for its const
   const b=battle();b.setAdvisorOrder('develop');b.applyAllyPlan({...plan,development:'build_farm'});const gold=b.gold;b.tick(.05);const farm=b.buildings.at(-1);assert.equal(farm.type,'farm');assert.equal(farm.team,'blue');assert.ok(farm.x<=485);assert.ok(farm.remaining>0);assert.equal(b.gold,gold-BUILDINGS.farm.gold);assert.equal(b.developmentPending,false);advance(b,8.1);assert.equal(farm.remaining,0);assert.equal(b.buildings.filter(u=>u.team==='blue'&&u.type==='farm').length,2);
 });
 test('new priority stops pending spending but retains already paid queues and cantieri',()=>{
-  const b=battle();b.setAdvisorOrder('develop');b.applyAllyPlan({...plan,development:'train_archer'});b.tick(.05);const queued=b.queue[0],gold=b.gold;b.applyAllyPlan({...plan,development:'build_tower'});b.setAdvisorOrder('wait');advance(b,1);assert.equal(b.gold,gold);assert.equal(b.buildings.length,8);assert.equal(b.queue[0],queued);
+  const b=battle();b.setAdvisorOrder('develop');b.applyAllyPlan({...plan,development:'train_archer'});b.tick(.05);const queued=b.queue[0],gold=b.gold;b.applyAllyPlan({...plan,development:'build_tower'});b.setAdvisorOrder('wait');advance(b,1);assert.equal(b.gold,gold);assert.equal(b.buildings.filter(e=>e.team==='blue').length,4);assert.equal(b.queue[0],queued);
 });
 test('unaffordable actions wait, queue limits hold, repeated barracks are not built',()=>{
-  const b=battle();b.setAdvisorOrder('develop');b.applyAllyPlan({...plan,development:'build_farm'});b.gold=0;b.wood=0;b.tick(.05);assert.equal(b.buildings.length,8);assert.match(b.developmentStatus,/risorse/);b.gold=1000;b.wood=1000;b.time=3;b.applyAllyPlan({...plan,development:'build_barracks'});b.tick(.05);assert.equal(b.buildings.length,8);assert.match(b.developmentStatus,/già presente/);
+  const b=battle();b.setAdvisorOrder('develop');b.applyAllyPlan({...plan,development:'build_farm'});b.gold=0;b.wood=0;b.tick(.05);assert.equal(b.buildings.filter(e=>e.team==='blue').length,4);assert.match(b.developmentStatus,/risorse/);b.gold=1000;b.wood=1000;b.time=3;b.applyAllyPlan({...plan,development:'build_barracks'});b.tick(.05);assert.equal(b.buildings.filter(e=>e.team==='blue').length,4);assert.match(b.developmentStatus,/già presente/);
   b.train('infantry');b.train('archer');b.applyAllyPlan({...plan,development:'train_knight'});b.time=6;b.tick(.05);assert.equal(b.queue.length,2);
 });
 test('snapshot validates priorities; development request exposes a bounded paid action choice only when delegated',()=>{

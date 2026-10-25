@@ -20,7 +20,7 @@ test('emergency permission is temporary; paid queues continue after threats disa
   const {b,enemy}=raid();b.tick(.05);const order=b.queue[0],gold=b.gold;enemy.hp=0;b.time=1;b.tick(.05);assert.equal(b.emergencyDefense.active,false);assert.equal(b.queue[0],order);b.time=2;b.tick(.05);assert.equal(b.gold,gold);assert.equal(b.queue.length,1);
 });
 test('delayed offensive development cannot buy an economy building during emergency or after permission expires',()=>{
-  const {b,enemy}=raid();b.applyAllyPlan({...plan,development:'build_farm'});b.tick(.05);assert.equal(b.buildings.length,8);assert.equal(b.queue[0].type,'knight');enemy.hp=0;b.time=2;b.applyAllyPlan({...plan,development:'build_tower'});const gold=b.gold;b.tick(.05);assert.equal(b.buildings.length,8);assert.equal(b.gold,gold);
+  const {b,enemy}=raid();b.applyAllyPlan({...plan,development:'build_farm'});b.tick(.05);assert.equal(b.buildings.filter(e=>e.team==='blue').length,4);assert.equal(b.queue[0].type,'knight');enemy.hp=0;b.time=2;b.applyAllyPlan({...plan,development:'build_tower'});const gold=b.gold;b.tick(.05);assert.equal(b.buildings.filter(e=>e.team==='blue').length,4);assert.equal(b.gold,gold);
 });
 test('manual units are untouched, wait still permits emergency defense spending, and suspended Jev cannot spend',()=>{
   const {b}=raid();const manual=b.spawn('infantry','blue',950,300);b.command([manual.id],'move',1000,350);const order=manual.order;b.setAdvisorOrder('wait');b.tick(.05);assert.equal(manual.order,order);assert.equal(manual.control,'manual');assert.equal(b.queue[0].type,'knight');

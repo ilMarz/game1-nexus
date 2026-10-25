@@ -3,7 +3,7 @@ import {W,H,PASSAGES,CLIFFS,terrainAt,zoneAt,walkable,findPath} from './rts-terr
 import {normalizeRtsPlan,localRtsPlan,summarizeBattle,MANEUVERS} from './rts-plans.js';
 import {RESERVE_SHARE,assessFront,emergencyDefense} from './rts-balance.js';
 import {ADVISOR_ORDERS,developmentNeed,respectOrder,emergencyNeed,EMERGENCY_ACTIONS} from './rts-orders.js';
-import {enemyProfile,enemyDevelopmentChoices} from './rts-enemy.js';
+import {ENEMY_START,enemyProfile,enemyDevelopmentChoices} from './rts-enemy.js';
 export {W,H};
 export const BRIDGES=PASSAGES.map(p=>p.y);
 export const TROOPS={
@@ -26,7 +26,7 @@ export class SiegeBattle{
     this.time=0;this.gold=320;this.wood=220;this.phase='prep';this.nextId=1;this.units=[];this.buildings=[];this.shots=[];this.queue=[];this.wave=0;this.nextWave=0;this.incomeAt=5;this.events=[];
     this.navRevision=0;this.losses={blue:0,red:0};this.enemyPlan=null;this.allyPlan=null;this.allyEnabled=false;this.commandRevision=0;this.externalCommander=false;this.effects=[];
     this.tactics={blue:{},red:{}};this.tacticsAt=0;
-    this.enemyGold=320;this.enemyWood=220;this.enemyQueue=[];this.enemyDevelopmentPending=false;this.enemyDevelopmentAt=0;this.enemyDevelopmentStatus='';
+    this.enemyGold=ENEMY_START.gold;this.enemyWood=ENEMY_START.wood;this.enemyQueue=[];this.enemyDevelopmentPending=false;this.enemyDevelopmentAt=0;this.enemyDevelopmentStatus='';
     this.advisorOrder='balanced';this.orderRevision=0;this.developmentPending=false;this.developmentAt=0;this.developmentStatus='';
     this.emergencyDefense={active:false,threats:0,defenders:0};this.emergencyProductionAt=0;
     this.audioEvents=[];this.audioStarted=false;
@@ -34,8 +34,10 @@ export class SiegeBattle{
     for(const [team,x] of [['blue',155],['red',1045]]){
       this.addBuilding('keep',team,x,380);this.addBuilding('barracks',team,team==='blue'?230:970,245);this.addBuilding('farm',team,team==='blue'?170:1030,540);
       this.addBuilding('tower',team,team==='blue'?350:850,380);
-      ['infantry','infantry','infantry','knight','knight','archer','archer','archer'].forEach((type,i)=>this.spawn(type,team,team==='blue'?270+(i%3)*26:930-(i%3)*26,320+Math.floor(i/3)*43));
+      const roster=['infantry','infantry','infantry','knight','knight','archer','archer','archer',...(team==='red'?ENEMY_START.extraTroops:[])];
+      roster.forEach((type,i)=>this.spawn(type,team,team==='blue'?270+(i%3)*26:930-(i%3)*26,320+Math.floor(i/3)*43));
     }
+    for(const farm of ENEMY_START.farms)this.addBuilding('farm','red',farm.x,farm.y);
     this.message('Schiera le truppe, poi avvia la battaglia.');
   }
   message(text){this.events.unshift(text);this.events.length=Math.min(6,this.events.length);}
@@ -160,9 +162,9 @@ export class SiegeBattle{
     const field=team==='blue'?'allyPlan':'enemyPlan',state=this.tactics[team],previous=this[field],front=assessFront(this.units,this.buildings,team);
     if(team==='red')plan.development??=developmentNeed(summarizeBattle(this,'red'));
     if(team==='red'&&!front.emergency){
-      plan={...plan,maneuver:plan.maneuver==='defend'?'assault':plan.maneuver,stance:plan.stance==='defensive'?'balanced':plan.stance};
+      plan={...plan,maneuver:plan.maneuver==='defend'?'assault':plan.maneuver,stance:'offensive'};
       const healthy=this.units.filter(u=>u.team===team&&u.hp>0&&u.hp/u.maxHp>=.28),available=healthy.length-Math.ceil(healthy.length*RESERVE_SHARE[plan.stance]);
-      const soft=this.buildings.some(b=>b.team==='blue'&&b.type==='farm'&&b.hp>0)?'economy':this.buildings.some(b=>b.team==='blue'&&b.type==='barracks'&&b.hp>0)?'barracks':'crossing';
+      const soft=this.buildings.some(b=>b.team==='blue'&&b.type==='farm'&&b.hp>0)?'economy':this.buildings.some(b=>b.team==='blue'&&b.type==='barracks'&&b.hp>0)?'barracks':'keep';
       if(['keep','towers'].includes(plan.objective)&&available<6&&!healthy.some(u=>u.type==='ram'))plan.objective=available>=4?soft:'crossing';
       if(plan.objective==='crossing'&&this.sites.find(s=>s.id===plan.passage)?.owner==='red')plan.objective=soft;
     }

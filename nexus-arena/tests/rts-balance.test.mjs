@@ -10,7 +10,7 @@ const advance=(b,seconds)=>{for(let i=0;i<seconds*20;i++)b.tick(.05);};
 function gather(b,team='blue'){for(const u of b.units.filter(u=>u.team===team&&u.duty==='rally')){u.x=team==='blue'?440:760;u.y=225;}b.balanceArmy(team);}
 
 test('both commanders reserve a stable garrison while a gathered cohort attacks',()=>{
-  const b=battle();for(const team of ['blue','red']){b.applyCommanderPlan(team,plan);assert.equal(b.tactics[team].defense,3);assert.equal(b.tactics[team].rally,5);gather(b,team);assert.equal(b.tactics[team].attack,5);const guards=b.units.filter(u=>u.team===team&&u.duty==='defense').map(u=>u.id);b.balanceArmy(team);assert.deepEqual(b.units.filter(u=>u.team===team&&u.duty==='defense').map(u=>u.id),guards);}
+  const b=battle();for(const team of ['blue','red']){b.applyCommanderPlan(team,plan);assert.equal(b.tactics[team].defense,3);assert.equal(b.tactics[team].rally,team==='red'?11:5);gather(b,team);assert.equal(b.tactics[team].attack,team==='red'?11:5);const guards=b.units.filter(u=>u.team===team&&u.duty==='defense').map(u=>u.id);b.balanceArmy(team);assert.deepEqual(b.units.filter(u=>u.team===team&&u.duty==='defense').map(u=>u.id),guards);}
 });
 test('doctrines change the allocation but even an offensive plan retains defenders',()=>{
   const counts={};for(const stance of ['offensive','balanced','defensive']){const b=battle();b.applyAllyPlan({...plan,stance});counts[stance]=b.tactics.blue.defense;}
@@ -35,9 +35,9 @@ test('wounded auto troops retreat and heal safely on either side, manual troops 
 test('recent hits and nearby hostiles prevent safe-base healing',()=>{
   const b=battle();b.units=[];const u=b.spawn('infantry','blue',220,380);u.hp=40;u.lastHit=0;advance(b,5);assert.equal(u.hp,40);const foe=b.spawn('ram','red',400,450);advance(b,2);assert.equal(u.hp,40);foe.hp=0;advance(b,1);assert.ok(u.hp>40);
 });
-test('enemy economy has the same passive income and farm losses reduce production',()=>{
-  const intact=battle();intact.nextWave=10000;const gold=intact.enemyGold,wood=intact.enemyWood;advance(intact,5.1);assert.equal(intact.enemyGold,gold+17);assert.equal(intact.enemyWood,wood+20);
-  const raided=battle();raided.nextWave=10000;raided.buildings.find(b=>b.team==='red'&&b.type==='farm').hp=0;advance(raided,5.1);assert.equal(raided.enemyGold,gold+12);assert.equal(raided.enemyWood,wood+8);
+test('enemy income follows its actual farms and farm losses reduce production',()=>{
+  const intact=battle();intact.nextWave=10000;const gold=intact.enemyGold,wood=intact.enemyWood;advance(intact,5.1);assert.equal(intact.enemyGold,gold+27);assert.equal(intact.enemyWood,wood+44);
+  const raided=battle();raided.nextWave=10000;raided.buildings.find(b=>b.team==='red'&&b.type==='farm').hp=0;advance(raided,5.1);assert.equal(raided.enemyGold,gold+22);assert.equal(raided.enemyWood,wood+32);
 });
 
 test('the provider explicitly chooses a validated doctrine; incomplete live answers are rejected',()=>{
