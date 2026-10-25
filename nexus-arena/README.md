@@ -1,4 +1,101 @@
-# NEXUS — Comando Orbitale
+# Terre di Confine — RTS medievale
+
+## Vercel Web Analytics
+
+Le quattro pagine (`index.html`, `orbitale.html`, `strategie.html`, `arcade.html`) caricano il modulo condiviso `analytics.js`, che usa `inject` da `@vercel/analytics`. Il caricamento è separato dai moduli di gioco. Vite seleziona esplicitamente la modalità sviluppo o produzione; le visite locali durante `npm run dev` non vengono registrate.
+
+Per raccogliere visite e visualizzazioni, abilita Web Analytics nel progetto Vercel e pubblica una nuova build. I dati saranno visibili nel pannello Analytics dopo le visite al deployment. Non servono chiavi client o modifiche al backend del gioco. Integrazione: [documentazione ufficiale Vercel](https://vercel.com/docs/analytics/quickstart).
+
+## Indicazioni al Consigliere
+
+A destra puoi cambiare la priorità con **Difendi**, **Sviluppa il regno**, **Attacca**, **Aspetta** oppure tornare all’autonomia equilibrata. La priorità persiste fino al prossimo comando ed entra nella fotografia inviata a Jev. Le reazioni sulle unità automatiche sono immediate; il nuovo piano viene richiesto rispettando il limite minimo di 5 secondi. Le risposte pendenti della vecchia priorità vengono scartate.
+
+- **Difendi:** richiama e protegge gli edifici di casa. Nessuna nuova spesa automatica.
+- **Attacca:** dottrina offensiva, squadra d’assalto con presidio residuo, raccolta e controlli di sicurezza normali. I soldati manuali restano esclusi.
+- **Aspetta:** mantiene ferme le unità automatiche, che si difendono entro la propria gittata; niente nuovi reclutamenti o cantieri automatici.
+- **Sviluppa il regno:** autorizza Jev a scegliere una singola azione di sviluppo per ogni piano accettato: spadaccino, lanciere, arciere, ariete, caserma, alloggi, segheria, torre oppure attesa. I costi vengono pagati tramite le stesse funzioni usate dal giocatore. Addestramento, costruzione, capienza, coda, spazio libero e ostacoli restano vincolanti. Nessun nuovo ordine se ci sono già due reclutamenti in coda; i cantieri dello stesso tipo non si duplicano. Limiti automatici: una caserma, tre alloggi, tre segherie, quattro torri.
+
+Per impostazione iniziale, costruzioni e reclutamenti restano manuali. Uscire da Sviluppa revoca subito nuove spese automatiche; le code e i cantieri già pagati continuano. Il diario distingue le tue indicazioni, le risposte del Consigliere e l’esito reale delle operazioni. Nella modalità locale, le esigenze sono valutate con regole dichiarate: infrastruttura mancante, capienza, arieti in arrivo, difese, produzione e carenze dell’esercito.
+
+## Descrizioni e diario del Consigliere
+
+Le sezioni **Recluta e schiera** e **Rinforza il regno** mostrano una descrizione visibile per ogni unità, edificio e riparazione, oltre ai costi. A destra compare soltanto il tuo Consigliere: il pannello nemico è stato rimosso, ma il comandante avversario resta attivo nella simulazione.
+
+Il diario funziona come una chat di report: aggiunge messaggi con orario, conserva gli ultimi 120 e distingue gli ordini validati di Jev dalle notizie osservate sul campo. Include reclutamenti richiesti dal giocatore, rinforzi pronti, perdite, cambi di controllo manuale, conquiste, edifici, incursioni, ritirate, pause e fine partita. Non aggiunge richieste al modello e non produce ragionamenti privati. Scorre verso i nuovi messaggi soltanto se stai già leggendo il fondo; il riavvio azzera lo storico. I dettagli di strategia e controllo sono espandibili sopra il diario.
+
+## I Consiglieri Strateghi
+
+Su desktop l’interfaccia è divisa in tre colonne: **schieramento a sinistra**, **mappa al centro**, **Consiglieri con resoconti a destra**. Reclutamento, edifici, riparazione e avvio sono riuniti nel pannello sinistro; i due pannelli laterali scorrono indipendentemente. Sugli schermi piccoli le sezioni si impilano per mantenere leggibili i comandi.
+
+Nel gioco Jev prende il ruolo di **Consigliere Stratega**, sia alleato sia nemico. I due personaggi hanno ritratti originali distinti, con mantello blu per l’alleato e rosso per il rivale, nel pannello dei Consiglieri. Le immagini sono state create con image_gen integrato e salvate in `public/assets/advisors/`; il README di quella cartella conserva i prompt completi e la provenienza.
+
+Ogni Consigliere descrive in prima persona gli ordini applicati: passaggio, manovra, bersaglio reale, presidi, raccolta, recupero e prossimi rinforzi. I testi cambiano anche quando intervieni manualmente, sospendi la guida, metti in pausa o rimani senza unità disponibili. I resoconti sono una traduzione in italiano delle decisioni strutturate e dello stato effettivo del campo; non aggiungono chiamate al modello né attribuiscono ragionamenti privati. Il registro conserva anche il resoconto associato a ogni decisione.
+
+La pagina principale è uno strategico medievale **Jev alleato contro Jev nemico**. Tu scegli e recluti i soldati; il tuo Jev guida automaticamente quelli che gli affidi, mentre puoi intervenire manualmente in qualsiasi momento. Avvia con `npm install` e `npm run dev`, poi apri `http://127.0.0.1:5173/`. Per entrambi i Jev configura `TYPESAFE_API_KEY` in `.env`, senza prefisso `VITE_`. Le chiavi esistenti restano valide e vengono usate solo dal server.
+
+## Tu recluti, Jev comanda, tu puoi intervenire
+
+La modalità predefinita avvia **due richieste indipendenti** a TypeSafe: il tuo Jev blu e quello nemico rosso. Entrambi vedono eserciti, terreno, edifici, perdite, piani precedenti e ordini manuali. Ognuno decide per il proprio schieramento. L’analisi iniziale ferma il tempo finché entrambe le risposte sono pronte; successivamente le analisi non interrompono la battaglia.
+
+- **Produzione tua:** scegli spadaccini, lancieri, arcieri o arieti durante lo scontro, pagando i costi normali. Il Jev alleato non può spendere risorse, reclutare o inventare unità.
+- **Disponibilità:** “Nuove truppe al Consigliere” assegna i futuri reclutamenti al comandante. Se disattivato, ogni unità messa in coda resta una riserva manuale: cambiare la casella in seguito non altera gli elementi già in coda.
+- **Intervento manuale:** movimento, attacco a un bersaglio, presidio, ritirata e “Solo io” tolgono le unità selezionate al Jev alleato. Il controllo resta tuo anche dopo la conclusione dell’ordine, finché non scegli “Affida allo Stratega”. Una risposta AI arrivata in ritardo non può annullare il tuo comando.
+- **Delega:** “Affida allo Stratega” rende le unità selezionate nuovamente disponibili e applica la strategia corrente. Le nuove unità automatiche ricevono gli ordini appena completano l’addestramento. Gli altri soldati manuali restano indipendenti.
+- **Sospensione:** disattivando “Consigliere alleato attivo”, i suoi soldati presidiano la posizione; i tuoi ordini manuali proseguono. Puoi riattivarlo in seguito. Il Jev nemico continua ad agire.
+- **Adattamento:** ciascun comandante rivaluta normalmente ogni 5 secondi. Reclutamenti, ordini manuali, perdite, edifici e cambi di controllo dei passaggi anticipano la rivalutazione, mantenendo almeno 5 secondi fra le richieste dello stesso comandante. Gli ordini già in corso rimangono attivi durante l’analisi.
+- **Trasparenza:** due pannelli e due riepiloghi mostrano i rispettivi piani, fonti, latenze e registri. Il numero di unità manuali e disponibili è sempre visibile. Le rotte alleate sono azzurre, quelle nemiche color rame; i soldati blu hanno un indicatore azzurro se affidati a Jev, oro se manuali.
+
+Il Jev alleato sceglie **passaggio, obiettivo, manovra e dottrina** sulle truppe fornite dal giocatore. Il Jev nemico sceglie anche la composizione dei propri rinforzi, con quantità fissata dal gioco. Il server limita separatamente ciascun comandante a 16 richieste/minuto per IP e istanza; nessuna chiave viene inviata al browser. La modalità locale evita entrambe le chiamate ed è etichettata esplicitamente. Pausa, fine partita, sospensione e riavvio invalidano o rinviano le risposte pendenti secondo il loro stato.
+
+## Equilibrio fra difesa e attacco
+
+Entrambi i Jev scelgono anche una **dottrina**: equilibrata conserva circa il 34% dei soldati sani alla base, offensiva il 20%, prudente il 60%, arrotondando per eccesso e mantenendo almeno una guardia. Gli incursori aumentano la guarnigione; una minaccia immediata alla fortezza richiama tutte le truppe automatiche, con almeno 6 secondi di stabilità prima di ripartire. Gli ordini manuali restano sempre esclusi dal richiamo.
+
+Gli attaccanti si radunano sulla propria sponda: servono 6 unità per fortezza/torri, 4 per caserma/segheria, oppure un ariete e tre scorte; bastano 2 per un passaggio. Almeno il 70% deve raggiungere la raccolta. Perdite gravi impongono una ricomposizione di almeno 8 secondi. I nuovi soldati raggiungono una squadra vicina o attendono compagni alla raccolta.
+
+Sotto il 28% di salute, i soldati automatici tornano alla base e riprendono servizio dall’80%. Entrambi gli eserciti recuperano 5 punti salute al secondo entro 140 metri da fortezza/caserma operativa, dopo 6 secondi senza colpi e senza nemici entro 220 metri. Anche i soldati manuali possono recuperare, ma non vengono spostati dal Consigliere. I resoconti mostrano difesa, attacco, raccolta e recupero. Jev sceglie il piano; le reazioni immediate seguono queste regole condivise della simulazione.
+
+I rinforzi nemici arrivano inizialmente a 45 secondi, poi ogni 50–60 secondi, con massimo 8 per gruppo e 30 nemici vivi. Distruggere la segheria dimezza i gruppi; distruggere la caserma li blocca.
+
+## La nuova modalità
+
+- **Obiettivo:** difendi la tua fortezza e distruggi quella nemica. La partita finisce quando cade una delle due.
+- **Schieramento:** prima di iniziare puoi spostare le truppe sul tuo territorio, scegliere le costruzioni e mettere in coda reclutamenti. Economia, cantieri e addestramento iniziano con la battaglia.
+- **Comandi:** clic o riquadro per selezionare, Maiusc per aggiungere, clic destro per muovere o attaccare un nemico. `Q` seleziona tutti, `A` poi clic avanza combattendo, `H` presidia, `R` ritira, Spazio mette in pausa. `1–4` reclutano. `T` mostra/nasconde l’analisi del terreno. I pulsanti `+ / − / ⌖` ingrandiscono e ripristinano la visuale; con una selezione, lo zoom si centra sull’esercito. Trascina con il tasto centrale per spostare la visuale ingrandita. Su touch seleziona un soldato oppure Tutti, poi tocca il terreno o un bersaglio.
+- **Truppe:** spadaccini, lancieri, arcieri e arieti. Gli spadaccini hanno bonus contro i lancieri; i lancieri contro gli arieti. Gli arieti infliggono triplo danno agli edifici e resistono alle frecce, ma vanno scortati.
+- **Economia:** ogni 5 secondi ricevi 12 oro e 8 legno, più 5 oro e 12 legno per segheria. Ogni attraversamento presidiato per 5 secondi passa sotto il tuo controllo e aggiunge 15 oro e 5 legno ogni 5 secondi. Le presenze contrapposte fermano la conquista; gli arieti non conquistano.
+- **Edifici:** puoi costruire caserme, torri, segherie e alloggi sulla tua sponda anche durante il combattimento. Le torri e le fortezze sparano; le caserme permettono il reclutamento; gli alloggi aumentano di 10 il limite iniziale di 30 unità. La coda di addestramento è condivisa fra le caserme, con massimo 8 unità in attesa. La fortezza può essere riparata.
+- **Invasioni:** Jev comanda subito i soldati già presenti. I primi rinforzi arrivano dopo 45 secondi; quelli successivi ogni 50–60 secondi. Composizione e rotta seguono l’ultimo piano accettato. La quantità è fissata dal gioco, da 6 a 8 per gruppo, fino a 30 nemici vivi: il modello non può aumentarla. Distruggere la caserma nemica blocca i nuovi rinforzi.
+- **Pausa:** congela simulazione e interazioni di gioco; il cambio scheda mette automaticamente in pausa. Il riavvio azzera tutta la partita.
+
+## Jev, comandante del regno rivale
+
+`POST /api/warlord` riceve una fotografia validata di unità, posizioni, salute, edifici, cantieri, risorse, perdite e controllo degli attraversamenti. Jev/TypeSafe risponde a cinque Choice: **passaggio, composizione, obiettivo, manovra e dottrina**. Nessun campo libero viene eseguito come codice o istruzione di gioco. Le opzioni sono azioni implementate; un piano con arieti e un guado non viene accettato. La difesa è disponibile anche per ricomporre le forze.
+
+L’analisi iniziale congela il tempo. Dopo la risposta, il Jev nemico rivaluta ogni **5 secondi di simulazione**, oppure prima in presenza di eventi rilevanti, con intervallo minimo di 5 secondi. Gli ordini cambiano rotta e bersaglio delle truppe attive, mantenendo tipo, salute e posizione. La composizione cambia solo i rinforzi futuri. L’assalto combatte lungo il percorso; l’aggiramento evita inseguimenti fino all’arrivo nella sponda occidentale; la difesa protegge gli edifici di casa e intercetta gli incursori. Il Jev alleato usa gli stessi comportamenti dal lato opposto della mappa, rispettando il controllo manuale. Gli arieti esistenti usano comunque un ponte compatibile. Un piano confermato conserva i percorsi già in corso; bersagli distrutti vengono sostituiti.
+
+I pannelli dei Consiglieri e il registro mostrano **provenienza reale**, latenza, confidenza e piano applicato. L’osservazione della copertura del passaggio è calcolata dalla telemetria, non presentata come ragionamento privato del modello. Il registro conserva le ultime sette decisioni.
+
+Chiave mancante, errore del provider, risposte invalide o limite server producono un **ripiego locale dichiarato**, senza chiamare un altro provider. Le regole locali osservano i passaggi meno coperti, la composizione e le strutture dell’avversario. L’opzione “Regole locali · senza Jev” non effettua chiamate. Timeout server 8 s, client 10 s, limite di 16 richieste/minuto per IP, comandante e istanza. Pausa e fine partita fermano la programmazione; le risposte tardive dopo riavvio/fine vengono ignorate e quelle arrivate in pausa attendono la ripresa. Le modifiche al codice API richiedono il riavvio del server locale.
+
+## Terreno e movimento
+
+| Terreno | Vantaggio | Punto debole |
+|---|---|---|
+| Alture | +25% gittata; +15% danni a distanza verso la pianura; tiro dal basso −15% | Movimento −12%; gli accessi possono essere aggirati |
+| Boschi | Le unità ricevono −40% danni dalle frecce | Movimento −28%, gittata −15%; niente costruzioni |
+| Ponte della corona / Ponte del mulino | Percorso rapido e compatibile con gli arieti | Accessi prevedibili da presidiare; il ponte nord è esposto alle alture |
+| Guado dei salici / Guado dei canneti | Aggiramento lungo i bordi della mappa | Solo fanteria, velocità −48%, strettoia |
+| Passo delle rovine | Collegamento centrale diretto | Solo fanteria, velocità −32%, passaggio molto stretto |
+| Costoni rocciosi | Ostacoli per proteggere un fianco e incanalare gli avversari | Impediscono movimento e costruzione |
+
+I percorsi A* evitano fiume, costoni ed edifici, rispettano i limiti degli arieti e includono il costo del terreno. Le truppe accelerano, cambiano orientamento gradualmente, si separano e raggiungono una formazione con lancieri/fanteria davanti e arcieri dietro. La simulazione nel browser avanza a 30 passi al secondo, con interpolazione della grafica fra i passi.
+
+Grafica originale disegnata dal codice: terreno con texture e rilievi, acqua e guadi, ponti distinti, boschi, edifici con muratura e insegne, soldati con armatura, mantello e camminata legata alla distanza percorsa. Frecce animate, colpi, polvere e cadute completano il combattimento. Si può ingrandire la mappa fino a 2,4×. Il prototipo non include nebbia di guerra, salvataggi o multiplayer. Le modalità precedenti restano in `/orbitale.html` e `/arcade.html`.
+
+Verifica: `npm test` e `npm run build`. I test RTS controllano attraversamento dei ponti, ostacoli, schieramento, economia, reclutamento, costruzione, conquista, incursioni, danni e vittoria/sconfitta.
+
+# NEXUS — Comando Orbitale (modalità precedente)
 
 Gioco strategico browser con **Phaser 4.2.1**, asset originali **Kenney Space Shooter Redux** e comandante nemico **Jev / TypeSafe** oppure **Qwen / Hugging Face**, tramite API server. Nessun modello ML locale.
 
@@ -11,7 +108,7 @@ npm install
 npm run dev
 ```
 
-- `http://127.0.0.1:5173/`: Comando Orbitale, la modalità principale.
+- `http://127.0.0.1:5173/orbitale.html`: Comando Orbitale, la modalità precedente.
 - `/arcade.html`: lo shooter precedente, conservato con mira mouse e due joystick touch. [Istruzioni arcade](ARCADE.md).
 - `/strategie.html`: anteprima delle atmosfere della modalità arcade.
 
