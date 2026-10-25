@@ -1,7 +1,6 @@
 import {PASSAGES,terrainAt} from './rts-terrain.js';
 import {COMPOSITIONS} from './rts-plans.js';
 import {STANCES} from './rts-balance.js';
-import {respectOrder} from './rts-orders.js';
 
 const targetNames={keep:'la fortezza avversaria',barracks:'la caserma avversaria',farm:'la segheria avversaria',tower:'la torre avversaria',house:'gli alloggi avversari'};
 const soldiers=n=>`${n} ${n===1?'soldato':'soldati'}`;
@@ -9,7 +8,7 @@ const soldiers=n=>`${n} ${n===1?'soldato':'soldati'}`;
 // Character dialogue is a factual rendering of applied orders, never hidden model reasoning.
 export function describeAdvisor(battle,advisor,team,{enabled=true,paused=false}={}){
   const allied=team==='blue',own=battle.units.filter(u=>u.team===team&&u.hp>0),manual=allied?own.filter(u=>u.control==='manual').length:0;
-  const available=own.filter(u=>!allied||u.control!=='manual'),raw=advisor.plan||(allied?battle.allyPlan:battle.enemyPlan),plan=allied&&raw?respectOrder(raw,battle.advisorOrder):raw;
+  const available=own.filter(u=>!allied||u.control!=='manual'),raw=(allied?battle.allyPlan:battle.enemyPlan)||advisor.plan,plan=battle.effectiveCommanderPlan(team,raw);
   if(['won','lost'].includes(battle.phase)){
     const victory=(battle.phase==='won')===allied;
     return victory?'La fortezza avversaria è caduta. La battaglia è vinta; non impartisco altri ordini.':'La nostra fortezza è caduta. La battaglia è conclusa; non impartisco altri ordini.';
@@ -20,7 +19,7 @@ export function describeAdvisor(battle,advisor,team,{enabled=true,paused=false}=
   if(allied&&battle.advisorOrder==='wait')return battle.emergencyDefense?.active?'Mantengo le posizioni come richiesto. La difesa è insufficiente: la delega d’emergenza mi permette di pagare rinforzi o strutture difensive. I tuoi ordini manuali restano attivi.':'Come richiesto, aspetto: le truppe automatiche mantengono la posizione e si difendono se attaccate. Non avvio reclutamenti o cantieri fuori dalle emergenze difensive. I tuoi ordini manuali restano attivi.';
   if(allied&&!available.length){
     const waiting=battle.queue.filter(q=>q.control!=='manual').length;
-    const message=manual?`Controlli direttamente ${soldiers(manual)}. Non cambio i tuoi ordini: attendo che tu mi affidi nuovamente delle unità.`:waiting?'Attendo le truppe disponibili in addestramento. Riceveranno il mio piano appena saranno pronte.':'Non ho truppe disponibili da guidare. Recluta dei soldati oppure affidami le tue riserve.';
+    const message=manual?`Controlli direttamente ${soldiers(manual)}. Non cambio i tuoi ordini: selezionali e premi “Affida allo Stratega” per farli seguire alla priorità scelta.`:waiting?'Attendo le truppe disponibili in addestramento. Riceveranno il mio piano appena saranno pronte.':'Non ho truppe disponibili da guidare. Recluta dei soldati oppure affidami le tue riserve.';
     return paused?'La battaglia è in pausa. '+message:message;
   }
   if(!allied&&!available.length)return battle.buildings.some(b=>b.team==='red'&&b.type==='barracks'&&b.hp>0)?'Non ho soldati attivi. Attendo i prossimi rinforzi dalla mia caserma.':'La mia caserma è distrutta e non ho soldati rimasti. Non posso inviare altri rinforzi.';

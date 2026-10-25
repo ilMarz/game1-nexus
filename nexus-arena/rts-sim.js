@@ -91,6 +91,12 @@ export class SiegeBattle{
   }
   setAllyEnabled(enabled){
     this.allyEnabled=!!enabled;this.commandRevision++;
+    if(enabled&&this.phase!=='planning'){
+      this.allyPlan=this.effectiveCommanderPlan('blue',this.allyPlan||localRtsPlan(summarizeBattle(this,'blue')));
+      if(this.advisorOrder==='develop'){
+        this.allyPlan.development=developmentNeed(summarizeBattle(this,'blue'));this.developmentPending=true;
+      }
+    }
     for(const u of this.units)if(u.team==='blue'&&u.control==='auto'){
       if(enabled&&this.allyPlan)continue;
       else{u.order={mode:'hold',x:u.x,y:u.y};u.path=[];u.route=null;u.vx=0;u.vy=0;}
@@ -103,9 +109,30 @@ export class SiegeBattle{
   applyAllyPlan(value){return this.applyCommanderPlan('blue',value);}
   setAdvisorOrder(order){
     if(!Object.hasOwn(ADVISOR_ORDERS,order)||['won','lost'].includes(this.phase))return false;
+    if(order===this.advisorOrder)return true;
     this.advisorOrder=order;this.orderRevision++;this.commandRevision++;this.developmentPending=false;this.developmentStatus='';
+    Object.assign(this.tactics.blue,{commitUntil:0,assaultUntil:0,regroupUntil:0});
+    if(order==='attack')this.tactics.blue.launched=false;
     this.audioEvent('order');
+    if(this.allyEnabled){
+      this.allyPlan=this.effectiveCommanderPlan('blue',order==='balanced'?localRtsPlan(summarizeBattle(this,'blue')):this.allyPlan||localRtsPlan(summarizeBattle(this,'blue')));
+      if(order==='develop'){
+        this.allyPlan.development=developmentNeed(summarizeBattle(this,'blue'));this.developmentPending=true;this.developmentAt=this.time;
+      }
+    }
     if(this.allyPlan)this.balanceArmy('blue',true);return true;
+  }
+  effectiveCommanderPlan(team,raw=team==='blue'?this.allyPlan:this.enemyPlan){
+    if(!raw||team!=='blue')return raw;
+    let plan=respectOrder(raw,this.advisorOrder);
+    if(this.advisorOrder==='attack'){
+      if(plan.objective==='crossing')plan={...plan,objective:this.buildings.some(b=>b.team==='red'&&b.type==='farm'&&b.hp>0)?'economy':this.buildings.some(b=>b.team==='red'&&b.type==='barracks'&&b.hp>0)?'barracks':'keep'};
+      if(this.units.some(u=>u.team==='blue'&&u.control!=='manual'&&u.type==='ram'&&u.hp>0)&&!PASSAGES.find(p=>p.id===plan.passage).siege){
+        const y=PASSAGES.find(p=>p.id===plan.passage).y;
+        plan={...plan,passage:PASSAGES.filter(p=>p.siege).sort((a,b)=>Math.abs(a.y-y)-Math.abs(b.y-y))[0].id};
+      }
+    }
+    return plan;
   }
   developRealm(team='blue'){
     const defense=emergencyDefense(this.units,this.buildings,'blue');
@@ -159,6 +186,7 @@ export class SiegeBattle{
   }
   applyCommanderPlan(team,value){
     let plan=normalizeRtsPlan(value);if(!plan||team==='blue'&&!this.allyEnabled)return false;
+    plan=this.effectiveCommanderPlan(team,plan);
     const field=team==='blue'?'allyPlan':'enemyPlan',state=this.tactics[team],previous=this[field],front=assessFront(this.units,this.buildings,team);
     if(team==='red')plan.development??=developmentNeed(summarizeBattle(this,'red'));
     if(team==='red'&&!front.emergency){
@@ -168,8 +196,9 @@ export class SiegeBattle{
       if(['keep','towers'].includes(plan.objective)&&available<6&&!healthy.some(u=>u.type==='ram'))plan.objective=available>=4?soft:'crossing';
       if(plan.objective==='crossing'&&this.sites.find(s=>s.id===plan.passage)?.owner==='red')plan.objective=soft;
     }
-    const explicit=team==='blue'&&this.advisorOrder!=='balanced',captured=previous?.objective==='crossing'&&this.sites.find(s=>s.id===previous.passage)?.owner===team;
-    if(previous&&!explicit&&!front.emergency&&!captured&&previous.maneuver!=='defend'&&this.time<Math.max(state.commitUntil||0,state.assaultUntil||0)){
+    const explicit=team==='blue'&&['defend','develop','wait'].includes(this.advisorOrder),captured=previous?.objective==='crossing'&&this.sites.find(s=>s.id===previous.passage)?.owner===team;
+    const emergencyInterrupt=front.emergency&&!(team==='blue'&&this.advisorOrder==='attack');
+    if(previous&&!explicit&&!emergencyInterrupt&&!captured&&previous.maneuver!=='defend'&&this.time<Math.max(state.commitUntil||0,state.assaultUntil||0)){
       plan={...plan,passage:previous.passage,objective:previous.objective,maneuver:previous.maneuver};
       if(plan.composition==='siege'&&!PASSAGES.find(p=>p.id===plan.passage).siege)plan.composition='balanced';
     }else if(!previous||previous.passage!==plan.passage||previous.objective!==plan.objective||previous.maneuver!==plan.maneuver)state.commitUntil=this.time+30;
@@ -182,7 +211,8 @@ export class SiegeBattle{
   }
   enemyOrder(u){this.strategicOrder(u,this.enemyPlan);}
   balanceArmy(team,force=false){
-    const raw=team==='blue'?this.allyPlan:this.enemyPlan,plan=team==='blue'&&raw?respectOrder(raw,this.advisorOrder):raw;if(!plan||team==='blue'&&!this.allyEnabled)return;
+    const plan=this.effectiveCommanderPlan(team);if(!plan||team==='blue'&&!this.allyEnabled)return;
+    const directAttack=team==='blue'&&this.advisorOrder==='attack';
     const army=this.units.filter(u=>u.team===team&&u.hp>0&&u.control!=='manual'),home=this.buildings.filter(b=>b.team===team&&b.hp>0),keep=home.find(b=>b.type==='keep');if(!keep)return;
     const state=this.tactics[team],front=assessFront(this.units,this.buildings,team),west=team==='blue',sign=west?1:-1,crossing=PASSAGES.find(p=>p.id===plan.passage);
     if(team==='blue'&&this.advisorOrder==='wait'){
@@ -190,13 +220,13 @@ export class SiegeBattle{
       Object.assign(state,{emergency:false,launched:false,defense:0,attack:0,rally:0,recover:0,waiting:army.length});return;
     }
     if(front.emergency)state.dangerUntil=this.time+6;
-    const emergency=this.time<(state.dangerUntil??0),defending=emergency||plan.maneuver==='defend';
+    const emergency=!directAttack&&this.time<(state.dangerUntil??0),defending=emergency||plan.maneuver==='defend';
     const healthy=[];
     for(const u of army){
       if(u.hp/u.maxHp<.28||u.duty==='recover'&&u.hp/u.maxHp<.8){this.assignDuty(u,'recover',{mode:'move',x:keep.x+sign*65,y:keep.y+(u.id%5-2)*22},null,force);u.committed=false;}
       else healthy.push(u);
     }
-    const reserve=defending?healthy.length:Math.min(healthy.length,Math.max(1,Math.ceil(healthy.length*RESERVE_SHARE[plan.stance]),Math.min(front.threats+1,healthy.length)));
+    const reserve=defending?healthy.length:directAttack?Math.floor(healthy.length*.2):Math.min(healthy.length,Math.max(1,Math.ceil(healthy.length*RESERVE_SHARE[plan.stance]),Math.min(front.threats+1,healthy.length)));
     // Preserve the garrison between evaluations; prefer infantry over siege engines.
     healthy.sort((a,b)=>(a.type==='ram')-(b.type==='ram')||(a.duty!=='defense')-(b.duty!=='defense')||a.id-b.id);
     const defenders=healthy.filter(u=>u.duty==='defense').slice(0,reserve);
@@ -213,11 +243,14 @@ export class SiegeBattle{
     const minimum=plan.objective==='crossing'?2:['keep','tower'].includes(actualType)?6:4;
     const enough=attackers.length>=minimum||attackers.some(u=>u.type==='ram')&&attackers.length>=4;
     const committed=attackers.filter(u=>u.committed);
-    if(defending||state.launched&&committed.length<=Math.max(1,(state.launchSize||0)*.45)){
+    if(defending||!directAttack&&state.launched&&committed.length<=Math.max(1,(state.launchSize||0)*.45)){
       state.launched=false;state.regroupUntil=this.time+8;for(const u of attackers)u.committed=false;
     }
     const rally={x:west?440:760,y:crossing.y},gathered=attackers.filter(u=>dist(u,rally)<150);
-    if(!state.launched&&enough&&this.time>=(state.regroupUntil??0)&&gathered.length>=Math.ceil(attackers.length*.7)){
+    if(directAttack&&attackers.length){
+      if(!state.launched){state.launchSize=attackers.length;state.assaultUntil=this.time+25;state.commitUntil=this.time+30;}
+      state.launched=true;for(const u of attackers)u.committed=true;
+    }else if(!state.launched&&enough&&this.time>=(state.regroupUntil??0)&&gathered.length>=Math.ceil(attackers.length*.7)){
       state.launched=true;state.launchSize=attackers.length;state.assaultUntil=this.time+25;if(team==='red')this.wave++;for(const u of attackers)u.committed=true;
     }
     if(state.launched){

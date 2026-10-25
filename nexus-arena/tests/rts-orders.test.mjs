@@ -12,7 +12,7 @@ const advance=(b,t)=>{for(let i=0;i<t*20;i++)b.tick(.05);};
 test('defend recalls only automatic troops, attack reallocates more force, wait holds positions',()=>{
   const b=battle(),manual=b.units.find(u=>u.team==='blue');b.command([manual.id],'move',400,100);const order=manual.order;
   b.setAdvisorOrder('defend');assert.ok(b.units.filter(u=>u.team==='blue'&&u!==manual).every(u=>u.duty==='defense'));assert.equal(manual.order,order);
-  b.setAdvisorOrder('attack');assert.equal(b.tactics.blue.defense,2);assert.ok(b.tactics.blue.rally+b.tactics.blue.attack>0);
+  b.setAdvisorOrder('attack');assert.equal(b.tactics.blue.defense,1);assert.equal(b.tactics.blue.attack,6);assert.equal(b.tactics.blue.rally,0);
   b.setAdvisorOrder('wait');const units=b.units.filter(u=>u.team==='blue'&&u!==manual),positions=units.map(u=>[u.x,u.y]);advance(b,2);assert.deepEqual(units.map(u=>[u.x,u.y]),positions);assert.ok(units.every(u=>u.order.mode==='hold'));assert.equal(manual.order,order);
 });
 test('manual autonomy remains default and model development cannot spend without delegation',()=>{
@@ -38,7 +38,7 @@ test('local needs prefer missing infrastructure, housing and counters to observe
   const b=battle();b.buildings=b.buildings.filter(u=>u.team!=='blue'||u.type!=='barracks');assert.equal(developmentNeed(summarizeBattle(b,'blue')),'build_barracks');b.addBuilding('barracks','blue',230,245);b.spawn('ram','red',300,440);b.spawn('ram','red',320,440);assert.equal(developmentNeed(summarizeBattle(b,'blue')),'train_knight');b.setAdvisorOrder('develop');assert.ok(localRtsPlan(summarizeBattle(b,'blue')).development);
 });
 test('priority changes discard delayed plans and preserve the provider minimum interval',async()=>{
-  let complete;const d=new DualRtsCommanders(async()=>new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>({...plan,source:'typesafe',confidence:.8,latencyMs:10})});}));const b=battle();d.ally.start(b);d.setAdvisorOrder(b,'wait');complete();await new Promise(resolve=>setImmediate(resolve));assert.equal(d.ally.pending,null);assert.equal(d.ally.busy,false);assert.equal(d.ally.nextAt,5);assert.ok(b.units.filter(u=>u.team==='blue').every(u=>u.duty==='waiting'));
+  let complete;const d=new DualRtsCommanders(async()=>new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>({...plan,source:'typesafe',confidence:.8,latencyMs:10})});}));const b=battle();d.ally.start(b);d.setAdvisorOrder(b,'wait');complete();await new Promise(resolve=>setImmediate(resolve));assert.equal(d.ally.pending,null);assert.equal(d.ally.busy,false);assert.equal(d.ally.nextAt,3);assert.ok(b.units.filter(u=>u.team==='blue').every(u=>u.duty==='waiting'));
 });
 test('the journal acknowledges new instructions without promising an advance during wait',()=>{
   const b=battle(),j=new AdvisorJournal(),a={plan,source:'typesafe'};j.update(b,a);b.setAdvisorOrder('wait');j.update(b,a);assert.match(j.messages.at(-1).text,/mantengo ferme/);b.setAdvisorOrder('develop');j.update(b,a);assert.ok(j.messages.some(m=>m.text.includes('nostre risorse')));

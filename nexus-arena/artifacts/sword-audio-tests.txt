@@ -1,0 +1,18 @@
+✔ all original sound buffers contain finite audible samples, fade out and leave headroom (238.5973ms)
+✔ audio initializes only on unlock, respects mute/volume, and persists preferences (10.0955ms)
+✔ dense combat is bounded, important feedback retains capacity, and finished voices disconnect (111.3972ms)
+✔ bundled sword recordings load once and replace synthetic melee buffers without playing by themselves (9.9305ms)
+✔ failed sword sample requests retain audible local fallback without blocking unlock (4.9142ms)
+✔ sword impacts remain audible when ranged combat has occupied the combat voices (14.6788ms)
+✔ paused, hidden and muted events are drained without replay on resume or restart (4.4871ms)
+✔ missing browser audio and blocked preference storage fail gracefully (0.3357ms)
+✔ battle attacks emit weapon-specific effects and destruction sounds exactly on death (2.4893ms)
+✔ training, capture and the battle ending produce event-based feedback rather than per-frame repeats (8.9333ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 678.4329

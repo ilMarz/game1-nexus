@@ -49,9 +49,9 @@ test('a delayed allied reply cannot overwrite a manual command issued while it w
   let complete;const d=new DualRtsCommanders(async(url,options)=>{const team=JSON.parse(options.body).commanderTeam;if(team==='blue')return new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>reply('blue')});});return {ok:true,json:async()=>reply('red')};});const b=new SiegeBattle();d.start(b);await settle();
   const unit=b.units.find(u=>u.team==='blue');b.command([unit.id],'move',150,180);const directOrder=unit.order;complete();await settle();d.tick(b);assert.equal(b.phase,'combat');assert.equal(unit.control,'manual');assert.equal(unit.order,directOrder);
 });
-test('both Jevs observe human intervention on the next five-second reassessment',async()=>{
+test('both Jevs observe human intervention on the next three-second reassessment',async()=>{
   const sent=[];const d=new DualRtsCommanders(async(url,options)=>{const s=JSON.parse(options.body);sent.push(s);return {ok:true,json:async()=>reply(s.commanderTeam)};}),b=new SiegeBattle();d.start(b);await settle();d.tick(b);assert.equal(sent.length,2);
-  b.time=2;const unit=b.units.find(u=>u.team==='blue');b.command([unit.id],'move',180,180);d.tick(b);assert.equal(d.enemy.nextAt,5);assert.equal(d.ally.nextAt,5);b.time=4.9;d.tick(b);assert.equal(sent.length,2);b.time=5;d.tick(b);await settle();d.tick(b);assert.equal(sent.length,4);
+  b.time=2;const unit=b.units.find(u=>u.team==='blue');b.command([unit.id],'move',180,180);d.tick(b);assert.equal(d.enemy.nextAt,3);assert.equal(d.ally.nextAt,3);b.time=2.9;d.tick(b);assert.equal(sent.length,2);b.time=3;d.tick(b);await settle();d.tick(b);assert.equal(sent.length,4);
   assert.ok(sent.slice(2).every(s=>s.units.find(u=>u.id===unit.id).control==='manual'));assert.ok(sent.slice(2).every(s=>s.units.find(u=>u.id===unit.id).order.mode==='move'));
 });
 test('disabling allied Jev cancels pending work, preserves manual units and makes auto troops hold',async()=>{
@@ -67,8 +67,8 @@ test('API validates sides and manual data, and each commander has an independent
   const s=summarizeBattle(new SiegeBattle(),'blue');assert.equal(sanitizeRtsSnapshot({...s,commanderTeam:'green'}),null);assert.equal(sanitizeRtsSnapshot({...s,units:[{...s.units[0],control:'hijack'}]}),null);assert.equal(sanitizeRtsSnapshot({...s,units:[{...s.units[0],order:{mode:'eval',x:1,y:1,target:null}}]}),null);
   const original=globalThis.fetch,saved=process.env.TYPESAFE_API_KEY;process.env.TYPESAFE_API_KEY='dual-test-secret';let calls=0;
   globalThis.fetch=async(url,options)=>{calls++;const body=JSON.parse(options.body),team=body.state.commanderTeam;const plan=team==='blue'?bluePlan:redPlan;return {ok:true,json:async()=>({answers:Object.fromEntries(Object.keys(body.questions).map(k=>[k,{type:'choice',choice:plan[k],confidence:.8}]))})};};
-  try{for(let i=0;i<17;i++){const r=response();await handler({method:'POST',headers:{'x-forwarded-for':'dual-rate'},body:{...summarizeBattle(new SiegeBattle(),'red'),provider:'typesafe'}},r);assert.equal(r.data.source,i<16?'typesafe':'fallback');}
-    const r=response();await handler({method:'POST',headers:{'x-forwarded-for':'dual-rate'},body:{...s,provider:'typesafe'}},r);assert.equal(r.data.source,'typesafe');assert.equal(r.data.commanderTeam,'blue');assert.equal(calls,17);
+  try{for(let i=0;i<25;i++){const r=response();await handler({method:'POST',headers:{'x-forwarded-for':'dual-rate'},body:{...summarizeBattle(new SiegeBattle(),'red'),provider:'typesafe'}},r);assert.equal(r.data.source,i<24?'typesafe':'fallback');}
+    const r=response();await handler({method:'POST',headers:{'x-forwarded-for':'dual-rate'},body:{...s,provider:'typesafe'}},r);assert.equal(r.data.source,'typesafe');assert.equal(r.data.commanderTeam,'blue');assert.equal(calls,25);
   }finally{globalThis.fetch=original;if(saved===undefined)delete process.env.TYPESAFE_API_KEY;else process.env.TYPESAFE_API_KEY=saved;}
 });
 test('manual deployment before battle remains manual when the allied commander starts',()=>{

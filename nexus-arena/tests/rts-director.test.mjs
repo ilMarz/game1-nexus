@@ -6,19 +6,19 @@ const reply={passage:'north_bridge',composition:'archers',objective:'barracks',m
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 test('initial analysis freezes combat then Jev commands active troops, with periodic reassessment',async()=>{
   let calls=0;const d=new RtsDirector(async()=>{calls++;return {ok:true,json:async()=>reply};}),b=new SiegeBattle();d.start(b);assert.equal(b.phase,'planning');b.tick(.05);assert.equal(b.time,0);await settle();d.tick(b);assert.equal(b.phase,'combat');assert.equal(d.source,'typesafe');assert.equal(b.enemyPlan.passage,'north_bridge');assert.ok(b.units.filter(u=>u.team==='red').every(u=>['defense','rally'].includes(u.duty)));assert.equal(calls,1);
-  b.time=4.9;d.tick(b);assert.equal(calls,1);b.time=5;d.tick(b);await settle();d.tick(b);assert.equal(calls,2);assert.equal(d.history.length,2);
+  b.time=2.9;d.tick(b);assert.equal(calls,1);b.time=3;d.tick(b);await settle();d.tick(b);assert.equal(calls,2);assert.equal(d.history.length,2);
 });
 test('responses received during pause wait without changing troops or advancing the schedule',async()=>{
   const d=new RtsDirector(async()=>({ok:true,json:async()=>reply})),b=new SiegeBattle();d.start(b);await settle();d.tick(b,true);assert.equal(b.enemyPlan,null);assert.equal(b.phase,'planning');d.tick(b,false);assert.equal(b.enemyPlan.objective,'barracks');
 });
-test('five-second cadence counts from request time instead of adding response latency',async()=>{
+test('three-second cadence counts from request time instead of adding response latency',async()=>{
   let complete,calls=0;const b=new SiegeBattle(),d=new RtsDirector(async()=>{calls++;return new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>reply});});});
-  d.start(b);complete();await settle();d.tick(b);b.time=5;d.tick(b);assert.equal(calls,2);
-  b.time=7;complete();await settle();d.tick(b);assert.equal(d.nextAt,10);b.time=9.9;d.tick(b);assert.equal(calls,2);b.time=10;d.tick(b);assert.equal(calls,3);d.reset();
+  d.start(b);complete();await settle();d.tick(b);b.time=3;d.tick(b);assert.equal(calls,2);
+  b.time=5;complete();await settle();d.tick(b);assert.equal(d.nextAt,6);b.time=5.9;d.tick(b);assert.equal(calls,2);b.time=6;d.tick(b);assert.equal(calls,3);d.reset();
 });
 test('a slow request never overlaps another analysis, and paused time triggers no checks',async()=>{
   let complete,calls=0;const b=new SiegeBattle(),d=new RtsDirector(async()=>{calls++;return new Promise(resolve=>{complete=()=>resolve({ok:true,json:async()=>reply});});});
-  d.start(b);complete();await settle();d.tick(b);b.time=5;d.tick(b);b.time=12;d.tick(b);assert.equal(calls,2);complete();await settle();d.tick(b,true);assert.equal(calls,2);assert.ok(d.pending);d.tick(b);assert.equal(calls,3);d.reset();
+  d.start(b);complete();await settle();d.tick(b);b.time=3;d.tick(b);b.time=12;d.tick(b);assert.equal(calls,2);complete();await settle();d.tick(b,true);assert.equal(calls,2);assert.ok(d.pending);d.tick(b);assert.equal(calls,3);d.reset();
 });
 test('a stale response cannot mutate a restarted or completed battle',async()=>{
   let release;const d=new RtsDirector(()=>new Promise(resolve=>{release=resolve;})),b=new SiegeBattle();d.start(b);d.reset();release({ok:true,json:async()=>reply});await settle();d.tick(b);assert.equal(b.enemyPlan,null);assert.equal(d.source,null);

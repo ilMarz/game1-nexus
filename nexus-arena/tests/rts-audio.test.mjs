@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BattleAudio,SOUND_TYPES,synthesizeEffect,volumeGain} from '../rts-audio.js';
+import {BattleAudio,SWORD_SAMPLES,SOUND_TYPES,synthesizeEffect,volumeGain} from '../rts-audio.js';
+import {readFile} from 'node:fs/promises';
 import {SiegeBattle} from '../rts-sim.js';
 function fakeContext(){
   const param=()=>({value:0,setTargetAtTime(value){this.value=value;}}),node=()=>({connect(){},disconnect(){}});
@@ -15,6 +16,34 @@ test('audio initializes only on unlock, respects mute/volume, and persists prefe
 });
 test('dense combat is bounded, important feedback retains capacity, and finished voices disconnect',async()=>{
   const c=fakeContext(),audio=new BattleAudio({contextFactory:()=>c});await audio.unlock();for(let i=0;i<30;i++){c.currentTime+=.1;audio.play({type:'clash'});}assert.equal(audio.active.size,8);assert.ok(audio.play({type:'alert'}));assert.ok(audio.play({type:'collapse'}));assert.equal(audio.active.size,10);c.currentTime+=.3;assert.ok(audio.play({type:'win'}));assert.equal(audio.active.size,10);const source=c.sources.at(-1);source.onended();source.onended();assert.equal(audio.active.size,9);audio.stop();assert.equal(audio.active.size,0);
+});
+
+test('bundled sword recordings load once and replace synthetic melee buffers without playing by themselves',async()=>{
+  const c=fakeContext(),requests=[];
+  c.decodeAudioData=async bytes=>({recorded:true,bytes});
+  const audio=new BattleAudio({contextFactory:()=>c,random:()=>0,fetcher:async url=>{
+    requests.push(url);const bytes=await readFile(new URL('../public'+url,import.meta.url));
+    assert.equal(bytes.subarray(0,4).toString(),'OggS');
+    return {ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)};
+  }});
+  await audio.unlock();assert.ok(await audio.loadSwordSounds());await audio.unlock();
+  assert.deepEqual(requests,SWORD_SAMPLES);assert.equal(c.sources.length,0);
+  assert.ok(audio.play({type:'clash'}));assert.equal(c.sources.at(-1).buffer.recorded,true);
+  audio.stop();assert.equal(audio.active.size,0);
+});
+
+test('failed sword sample requests retain audible local fallback without blocking unlock',async()=>{
+  const c=fakeContext();c.decodeAudioData=async()=>{throw Error('decode failed');};
+  const audio=new BattleAudio({contextFactory:()=>c,fetcher:async()=>({ok:false})});
+  assert.ok(await audio.unlock());assert.equal(await audio.loadSwordSounds(),false);
+  assert.ok(audio.play({type:'clash'}));assert.ok(c.sources.at(-1).buffer.data.some(v=>Math.abs(v)>.01));
+});
+
+test('sword impacts remain audible when ranged combat has occupied the combat voices',async()=>{
+  const c=fakeContext(),audio=new BattleAudio({contextFactory:()=>c});await audio.unlock();
+  for(let i=0;i<8;i++){c.currentTime+=.1;assert.ok(audio.play({type:'arrow'}));}
+  assert.ok(audio.play({type:'clash'}));assert.equal(audio.active.size,8);
+  assert.equal(c.sources.at(-1).effectType,'clash');assert.ok(c.sources.some(s=>s.effectType==='arrow'&&s.stopped));
 });
 test('paused, hidden and muted events are drained without replay on resume or restart',async()=>{
   const c=fakeContext(),audio=new BattleAudio({contextFactory:()=>c}),battle={audioEvents:[{type:'ram'}]};await audio.unlock();audio.consume(battle,{paused:true});assert.equal(battle.audioEvents.length,0);assert.equal(c.sources.length,0);audio.consume(battle);assert.equal(c.sources.length,0);battle.audioEvents.push({type:'clash'});audio.consume(battle);assert.equal(audio.active.size,1);audio.consume(battle,{hidden:true});assert.equal(audio.active.size,0);assert.equal(audio.master.gain.value,0);
