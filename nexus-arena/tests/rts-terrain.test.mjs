@@ -38,7 +38,7 @@ test('new Jev orders preserve existing unit identity, health and position',()=>{
   const ram=b.spawn('ram','red',900,600);b.enemyOrder(ram);assert.equal(ram.route,'south_bridge');
 });
 test('defensive orders protect home buildings on the eastern side',()=>{
-  const b=new SiegeBattle();b.applyEnemyPlan({passage:'south_bridge',composition:'archers',objective:'crossing',maneuver:'defend'});
+  const b=new SiegeBattle();b.spawn('infantry','blue',1000,420);b.applyEnemyPlan({passage:'south_bridge',composition:'archers',objective:'crossing',maneuver:'defend'});
   for(const u of b.units.filter(u=>u.team==='red')){assert.equal(u.order.mode,'guard');assert.equal(u.duty,'defense');assert.ok(u.order.x>650);assert.ok(Math.hypot(u.order.x-1045,u.order.y-380)<160);}
 });
 test('local fallback observes weak crossings and rejects unimplemented or incompatible plans',()=>{

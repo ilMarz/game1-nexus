@@ -1,8 +1,8 @@
 // Deterministic RTS simulation. Rendering and input live in rts-game.js.
 import {W,H,PASSAGES,CLIFFS,terrainAt,zoneAt,walkable,findPath} from './rts-terrain.js';
-import {normalizeRtsPlan,localRtsPlan,summarizeBattle,reinforcementBudget,MANEUVERS} from './rts-plans.js';
-import {RESERVE_SHARE,assessFront} from './rts-balance.js';
-import {ADVISOR_ORDERS,respectOrder} from './rts-orders.js';
+import {normalizeRtsPlan,localRtsPlan,summarizeBattle,MANEUVERS} from './rts-plans.js';
+import {RESERVE_SHARE,assessFront,emergencyDefense} from './rts-balance.js';
+import {ADVISOR_ORDERS,developmentNeed,respectOrder,emergencyNeed,EMERGENCY_ACTIONS} from './rts-orders.js';
 export {W,H};
 export const BRIDGES=PASSAGES.map(p=>p.y);
 export const TROOPS={
@@ -22,10 +22,13 @@ const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class SiegeBattle{
   constructor(){
-    this.time=0;this.gold=320;this.wood=220;this.phase='prep';this.nextId=1;this.units=[];this.buildings=[];this.shots=[];this.queue=[];this.wave=0;this.nextWave=45;this.incomeAt=5;this.events=[];
+    this.time=0;this.gold=320;this.wood=220;this.phase='prep';this.nextId=1;this.units=[];this.buildings=[];this.shots=[];this.queue=[];this.wave=0;this.nextWave=0;this.incomeAt=5;this.events=[];
     this.navRevision=0;this.losses={blue:0,red:0};this.enemyPlan=null;this.allyPlan=null;this.allyEnabled=false;this.commandRevision=0;this.externalCommander=false;this.effects=[];
     this.tactics={blue:{},red:{}};this.tacticsAt=0;
+    this.enemyGold=320;this.enemyWood=220;this.enemyQueue=[];this.enemyDevelopmentPending=false;this.enemyDevelopmentAt=0;this.enemyDevelopmentStatus='';
     this.advisorOrder='balanced';this.orderRevision=0;this.developmentPending=false;this.developmentAt=0;this.developmentStatus='';
+    this.emergencyDefense={active:false,threats:0,defenders:0};this.emergencyProductionAt=0;
+    this.audioEvents=[];this.audioStarted=false;
     this.sites=PASSAGES.map(p=>({id:p.id,x:600,y:p.y,owner:null,progress:0}));
     for(const [team,x] of [['blue',155],['red',1045]]){
       this.addBuilding('keep',team,x,380);this.addBuilding('barracks',team,team==='blue'?230:970,245);this.addBuilding('farm',team,team==='blue'?170:1030,540);
@@ -35,35 +38,40 @@ export class SiegeBattle{
     this.message('Schiera le truppe, poi avvia la battaglia.');
   }
   message(text){this.events.unshift(text);this.events.length=Math.min(6,this.events.length);}
+  audioEvent(type,x=600,y=380){if(this.audioEvents.length>=96)this.audioEvents.shift();this.audioEvents.push({type,x,y});}
   addBuilding(type,team,x,y,remaining=0){const d=BUILDINGS[type],b={id:this.nextId++,kind:'building',type,team,x,y,hp:d.hp,maxHp:d.hp,radius:d.radius,cooldown:0,remaining};this.buildings.push(b);this.navRevision++;return b;}
   spawn(type,team,x,y){const d=TROOPS[type],u={id:this.nextId++,kind:'unit',type,team,control:'auto',x,y,px:x,py:y,vx:0,vy:0,heading:team==='blue'?0:Math.PI,stride:0,hp:d.hp,maxHp:d.hp,radius:d.radius,cooldown:0,order:null,path:[],pathTimer:0};this.units.push(u);return u;}
-  get cap(){return 30+this.buildings.filter(b=>b.team==='blue'&&b.type==='house'&&b.hp>0&&!b.remaining).length*10;}
+  capFor(team){return 30+this.buildings.filter(b=>b.team===team&&b.type==='house'&&b.hp>0&&!b.remaining).length*10;}
+  get cap(){return this.capFor('blue');}
   get population(){return this.units.filter(u=>u.team==='blue'&&u.hp>0).length;}
   entity(id){return this.units.find(u=>u.id===id&&u.hp>0)||this.buildings.find(b=>b.id===id&&b.hp>0);}
-  train(type,availableToJev=true){
+  train(type,availableToJev=true,team='blue'){
+    const queue=team==='blue'?this.queue:this.enemyQueue,goldKey=team==='blue'?'gold':'enemyGold',woodKey=team==='blue'?'wood':'enemyWood';
     const d=TROOPS[type];if(!d)return 'Unità sconosciuta.';
     if(['won','lost'].includes(this.phase))return 'La battaglia è terminata.';
-    if(!this.buildings.some(b=>b.team==='blue'&&b.type==='barracks'&&b.hp>0&&!b.remaining))return 'Serve una caserma operativa.';
-    if(this.population+this.queue.length>=this.cap)return 'Esercito al completo: costruisci alloggi.';
-    if(this.queue.length>=8)return 'Coda piena: attendi il prossimo reclutamento.';
-    if(this.gold<d.gold||this.wood<d.wood)return 'Risorse insufficienti.';
-    this.gold-=d.gold;this.wood-=d.wood;this.queue.push({type,remaining:d.time,control:availableToJev?'auto':'manual'});this.commandRevision++;return null;
+    if(!this.buildings.some(b=>b.team===team&&b.type==='barracks'&&b.hp>0&&!b.remaining))return 'Serve una caserma operativa.';
+    if(this.units.filter(u=>u.team===team&&u.hp>0).length+queue.length>=this.capFor(team))return 'Esercito al completo: costruisci alloggi.';
+    if(queue.length>=8)return 'Coda piena: attendi il prossimo reclutamento.';
+    if(this[goldKey]<d.gold||this[woodKey]<d.wood)return 'Risorse insufficienti.';
+    this[goldKey]-=d.gold;this[woodKey]-=d.wood;queue.push({type,remaining:d.time,control:availableToJev?'auto':'manual'});this.commandRevision++;return null;
   }
-  canBuild(type,x,y){
+  canBuild(type,x,y,team='blue'){
+    const goldKey=team==='blue'?'gold':'enemyGold',woodKey=team==='blue'?'wood':'enemyWood';
     const d=BUILDINGS[type];if(!d||type==='keep')return 'Edificio non disponibile.';
     if(['won','lost'].includes(this.phase))return 'La battaglia è terminata.';
-    if(this.gold<d.gold||this.wood<d.wood)return 'Risorse insufficienti.';
-    if(x<55||x>485||y<75||y>685)return 'Costruisci nel tuo territorio, a ovest del fiume.';
+    if(this[goldKey]<d.gold||this[woodKey]<d.wood)return 'Risorse insufficienti.';
+    if((team==='blue'?(x<55||x>485):(x<715||x>1145))||y<75||y>685)return 'Costruisci nel tuo territorio, a ovest del fiume.';
     if(CLIFFS.some(c=>dist(c,{x,y})<c.radius+d.radius+8))return 'Il costone roccioso impedisce la costruzione.';
     if(zoneAt(x,y)?.kind==='forest')return 'Il bosco offre copertura, ma non può ospitare edifici.';
     if(this.buildings.some(b=>b.hp>0&&dist(b,{x,y})<b.radius+d.radius+24))return 'Troppo vicino a un altro edificio.';
     return null;
   }
-  build(type,x,y){const err=this.canBuild(type,x,y);if(err)return err;const d=BUILDINGS[type];this.gold-=d.gold;this.wood-=d.wood;this.addBuilding(type,'blue',x,y,d.time);this.message(`${d.name}: cantiere avviato.`);return null;}
+  build(type,x,y,team='blue'){const goldKey=team==='blue'?'gold':'enemyGold',woodKey=team==='blue'?'wood':'enemyWood',err=this.canBuild(type,x,y,team);if(err)return err;const d=BUILDINGS[type];this[goldKey]-=d.gold;this[woodKey]-=d.wood;this.addBuilding(type,team,x,y,d.time);this.audioEvent('build',x,y);this.message(`${d.name}: cantiere avviato.`);return null;}
   repair(){const keep=this.buildings.find(b=>b.team==='blue'&&b.type==='keep');if(!keep||keep.hp<=0||['won','lost'].includes(this.phase))return 'La battaglia è terminata.';if(keep.hp>=keep.maxHp)return 'Fortezza già integra.';if(this.gold<60||this.wood<30)return 'Servono 60 oro e 30 legno.';this.gold-=60;this.wood-=30;keep.hp=Math.min(keep.maxHp,keep.hp+260);return null;}
   command(ids,mode,x,y,target=null){
     const troops=this.units.filter(u=>ids.includes(u.id)&&u.team==='blue'&&u.hp>0);
     this.takeControl(ids,false);
+    if(troops.length)this.audioEvent('order',x,y);
     const cols=Math.ceil(Math.sqrt(troops.length)),facing=x>(troops.reduce((sum,u)=>sum+u.x,0)/troops.length||600)?1:-1;
     troops.sort((a,b)=>({pike:0,infantry:1,ram:2,archer:3}[a.type]-{pike:0,infantry:1,ram:2,archer:3}[b.type]));
     troops.forEach((u,i)=>{u.order={mode,x:clamp(x-Math.floor(i/cols)*25*facing,30,W-30),y:clamp(y+(i%cols-(cols-1)/2)*25,45,H-35),target};u.route=null;u.path=[];u.pathTimer=0;});
@@ -93,35 +101,63 @@ export class SiegeBattle{
   setAdvisorOrder(order){
     if(!Object.hasOwn(ADVISOR_ORDERS,order)||['won','lost'].includes(this.phase))return false;
     this.advisorOrder=order;this.orderRevision++;this.commandRevision++;this.developmentPending=false;this.developmentStatus='';
+    this.audioEvent('order');
     if(this.allyPlan)this.balanceArmy('blue',true);return true;
   }
-  developRealm(){
-    if(this.phase!=='combat'||!this.allyEnabled||this.advisorOrder!=='develop'||!this.developmentPending||this.time<this.developmentAt)return;
-    this.developmentAt=this.time+2;
-    const action=this.allyPlan?.development;if(!action)return;
-    if(action==='wait'){this.developmentPending=false;this.developmentStatus='Conservo le risorse e attendo il prossimo piano di sviluppo.';return;}
+  developRealm(team='blue'){
+    const defense=emergencyDefense(this.units,this.buildings,'blue');
+    const wasEmergency=this.emergencyDefense.active;this.emergencyDefense={...defense,active:defense.active&&this.allyEnabled};
+    if(this.emergencyDefense.active&&!wasEmergency)this.audioEvent('alert',155,380);
+    const emergency=team==='blue'&&this.emergencyDefense.active;
+    const red=team==='red',pending=red?'enemyDevelopmentPending':'developmentPending',at=red?'enemyDevelopmentAt':'developmentAt',status=red?'enemyDevelopmentStatus':'developmentStatus',queue=red?this.enemyQueue:this.queue,plan=red?this.enemyPlan:this.allyPlan,gold=red?this.enemyGold:this.gold,wood=red?this.enemyWood:this.wood;
+    if(this.phase!=='combat'||!red&&(!this.allyEnabled||this.advisorOrder!=='develop'&&!emergency)||!this[pending]&&!emergency||this.time<this[at])return;
+    if(emergency&&this.time<this.emergencyProductionAt)return;
+    this[at]=this.time+2;
+    let action=plan?.development;
+    if(emergency&&(!this[pending]||!EMERGENCY_ACTIONS.includes(action)))action=emergencyNeed(summarizeBattle(this,'blue'));
+    if(emergency&&action==='build_house'&&this.population+this.queue.length<this.cap)action=emergencyNeed(summarizeBattle(this,'blue'));
+    if(!action)return;
+    if(action==='wait'){this[pending]=false;this[status]='Conservo le risorse e attendo il prossimo piano di sviluppo.';return;}
     const [kind,type]=action.split('_');let error;
     if(kind==='train'){
-      if(this.queue.length>=2){this.developmentStatus='Attendo che si liberi la coda prima di aggiungere altri reclutamenti.';return;}
-      error=this.train(type,true);if(!error)this.queue.at(-1).source='advisor';
+      if(queue.length>=2){this[status]='Attendo che si liberi la coda prima di aggiungere altri reclutamenti.';return;}
+      error=this.train(type,true,team);if(!error)queue.at(-1).source='advisor';
     }else{
-      const own=this.buildings.filter(b=>b.team==='blue'&&b.hp>0&&b.type===type);
+      const own=this.buildings.filter(b=>b.team===team&&b.hp>0&&b.type===type);
       const maximum={barracks:1,house:3,farm:3,tower:4}[type];
-      if(own.length>=maximum||own.some(b=>b.remaining)){this.developmentPending=false;this.developmentStatus='La struttura prevista è già presente o in costruzione. Rivaluto le necessità.';return;}
-      const d=BUILDINGS[type];if(this.gold<d.gold||this.wood<d.wood){this.developmentStatus=`Attendo risorse per ${d.name.toLowerCase()}.`;return;}
-      const sites=[];for(let y=100;y<=660;y+=70)for(let x=100;x<=450;x+=70)if(!this.canBuild(type,x,y)&&!this.units.some(u=>u.hp>0&&dist(u,{x,y})<d.radius+u.radius+12))sites.push({x,y});
-      const target=type==='tower'?{x:420,y:this.units.filter(u=>u.team==='red'&&u.x<550).sort((a,b)=>a.x-b.x)[0]?.y||380}:{x:170,y:type==='farm'?550:180};
+      if(own.length>=maximum||own.some(b=>b.remaining)){this[pending]=false;this[status]='La struttura prevista è già presente o in costruzione. Rivaluto le necessità.';return;}
+      const d=BUILDINGS[type];if(gold<d.gold||wood<d.wood){this[status]=`Attendo risorse per ${d.name.toLowerCase()}.`;return;}
+      const sites=[];for(let y=100;y<=660;y+=70)for(let x=100;x<=450;x+=70)if(!this.canBuild(type,red?1200-x:x,y,team)&&!this.units.some(u=>u.hp>0&&dist(u,{x:red?1200-x:x,y})<d.radius+u.radius+12))sites.push({x:red?1200-x:x,y});
+      const threat=this.units.filter(u=>u.team!==team&&u.hp>0&&(red?u.x>650:u.x<550)).sort((a,b)=>a.x-b.x)[0];
+      const target=type==='tower'?{x:emergency&&threat?clamp(threat.x-80,80,450):red?780:420,y:threat?.y||380}:{x:red?1030:170,y:type==='farm'?550:180};
       sites.sort((a,b)=>dist(a,target)-dist(b,target));
-      if(!sites.length){this.developmentStatus='Non trovo terreno libero adatto alla struttura: attendo una nuova valutazione.';return;}
-      error=this.build(type,sites[0].x,sites[0].y);
+      if(!sites.length){this[status]='Non trovo terreno libero adatto alla struttura: attendo una nuova valutazione.';return;}
+      error=this.build(type,sites[0].x,sites[0].y,team);
     }
-    if(error){this.developmentStatus=error;return;}
-    this.developmentPending=false;this.developmentStatus=kind==='train'?`Ho avviato l’addestramento di ${TROOPS[type].name.toLowerCase()}, pagando oro e legno.`:`Ho avviato ${BUILDINGS[type].name.toLowerCase()}, pagando il costo del cantiere.`;
+    if(error){this[status]=error;return;}
+    if(emergency)this.emergencyProductionAt=this.time+5;
+    this[pending]=false;this[status]=kind==='train'?`Ho avviato l’addestramento di ${TROOPS[type].name.toLowerCase()}, pagando oro e legno.`:`Ho avviato ${BUILDINGS[type].name.toLowerCase()}, pagando il costo del cantiere.`;
   }
   applyCommanderPlan(team,value){
-    const plan=normalizeRtsPlan(value);if(!plan||team==='blue'&&!this.allyEnabled)return false;
-    const field=team==='blue'?'allyPlan':'enemyPlan',changed=JSON.stringify(plan)!==JSON.stringify(this[field]);this[field]=plan;
-    if(team==='blue'&&this.advisorOrder==='develop'&&plan.development)this.developmentPending=true;
+    let plan=normalizeRtsPlan(value);if(!plan||team==='blue'&&!this.allyEnabled)return false;
+    const field=team==='blue'?'allyPlan':'enemyPlan',state=this.tactics[team],previous=this[field],front=assessFront(this.units,this.buildings,team);
+    if(team==='red')plan.development??=developmentNeed(summarizeBattle(this,'red'));
+    if(team==='red'&&!front.emergency){
+      plan={...plan,maneuver:plan.maneuver==='defend'?'assault':plan.maneuver,stance:plan.stance==='defensive'?'balanced':plan.stance};
+      const healthy=this.units.filter(u=>u.team===team&&u.hp>0&&u.hp/u.maxHp>=.28),available=healthy.length-Math.ceil(healthy.length*RESERVE_SHARE[plan.stance]);
+      const soft=this.buildings.some(b=>b.team==='blue'&&b.type==='farm'&&b.hp>0)?'economy':this.buildings.some(b=>b.team==='blue'&&b.type==='barracks'&&b.hp>0)?'barracks':'crossing';
+      if(['keep','towers'].includes(plan.objective)&&available<6&&!healthy.some(u=>u.type==='ram'))plan.objective=available>=4?soft:'crossing';
+      if(plan.objective==='crossing'&&this.sites.find(s=>s.id===plan.passage)?.owner==='red')plan.objective=soft;
+    }
+    const explicit=team==='blue'&&this.advisorOrder!=='balanced',captured=previous?.objective==='crossing'&&this.sites.find(s=>s.id===previous.passage)?.owner===team;
+    if(previous&&!explicit&&!front.emergency&&!captured&&previous.maneuver!=='defend'&&this.time<Math.max(state.commitUntil||0,state.assaultUntil||0)){
+      plan={...plan,passage:previous.passage,objective:previous.objective,maneuver:previous.maneuver};
+      if(plan.composition==='siege'&&!PASSAGES.find(p=>p.id===plan.passage).siege)plan.composition='balanced';
+    }else if(!previous||previous.passage!==plan.passage||previous.objective!==plan.objective||previous.maneuver!==plan.maneuver)state.commitUntil=this.time+30;
+    const movement=p=>p&&[p.passage,p.objective,p.maneuver,p.stance];
+    const changed=JSON.stringify(movement(plan))!==JSON.stringify(movement(previous));this[field]=plan;
+    if(team==='blue'&&(this.advisorOrder==='develop'||this.allyEnabled&&emergencyDefense(this.units,this.buildings,'blue').active)&&plan.development)this.developmentPending=true;
+    if(team==='red')this.enemyDevelopmentPending=true;
     this.balanceArmy(team,changed);
     this.message(`${team==='blue'?'Alleato':'Nemico'} · ${changed?'nuovi ordini':'piano confermato'}: ${MANEUVERS[plan.maneuver]} · ${PASSAGES.find(p=>p.id===plan.passage).name}.`);return true;
   }
@@ -144,7 +180,13 @@ export class SiegeBattle{
     const reserve=defending?healthy.length:Math.min(healthy.length,Math.max(1,Math.ceil(healthy.length*RESERVE_SHARE[plan.stance]),Math.min(front.threats+1,healthy.length)));
     // Preserve the garrison between evaluations; prefer infantry over siege engines.
     healthy.sort((a,b)=>(a.type==='ram')-(b.type==='ram')||(a.duty!=='defense')-(b.duty!=='defense')||a.id-b.id);
-    const defenders=healthy.slice(0,reserve),attackers=healthy.slice(reserve);
+    const defenders=healthy.filter(u=>u.duty==='defense').slice(0,reserve);
+    while(defenders.length<reserve){
+      const candidates=healthy.filter(u=>!defenders.includes(u));
+      candidates.sort((a,b)=>(a.type==='ram')-(b.type==='ram')||defenders.filter(u=>u.type===a.type).length-defenders.filter(u=>u.type===b.type).length||a.id-b.id);
+      defenders.push(candidates[0]);
+    }
+    const attackers=healthy.filter(u=>!defenders.includes(u));
     const threat=this.units.filter(u=>u.team!==team&&u.hp>0&&(west?u.x<500:u.x>700)).sort((a,b)=>dist(a,keep)-dist(b,keep))[0];
     const anchor=threat?home.slice().sort((a,b)=>dist(a,threat)-dist(b,threat))[0]:keep;
     for(const u of defenders){u.committed=false;this.assignDuty(u,'defense',{mode:'guard',x:clamp(anchor.x+sign*90,55,W-55),y:clamp(anchor.y+(u.id%5-2)*26,65,H-65)},null,force);}
@@ -157,7 +199,7 @@ export class SiegeBattle{
     }
     const rally={x:west?440:760,y:crossing.y},gathered=attackers.filter(u=>dist(u,rally)<150);
     if(!state.launched&&enough&&this.time>=(state.regroupUntil??0)&&gathered.length>=Math.ceil(attackers.length*.7)){
-      state.launched=true;state.launchSize=attackers.length;for(const u of attackers)u.committed=true;
+      state.launched=true;state.launchSize=attackers.length;state.assaultUntil=this.time+25;if(team==='red')this.wave++;for(const u of attackers)u.committed=true;
     }
     if(state.launched){
       const veterans=attackers.filter(u=>u.committed);
@@ -188,17 +230,8 @@ export class SiegeBattle{
     u.route=crossing.id;u.path=[];u.pathTimer=0;
   }
   invade(){
-    const barracks=this.buildings.filter(b=>b.team==='red'&&b.type==='barracks'&&b.hp>0);
-    this.wave++;this.nextWave=this.time+Math.max(50,62-this.wave*2);
-    if(!barracks.length){this.message('Caserma nemica distrutta: i rinforzi sono interrotti.');return;}
-    if(!this.externalCommander||!this.enemyPlan)this.applyEnemyPlan(localRtsPlan(summarizeBattle(this)));
-    const plan=this.enemyPlan,crossing=PASSAGES.find(p=>p.id===plan.passage),force=reinforcementBudget(this.units,this.buildings,this.wave);
-    const roster={balanced:['infantry','pike','archer','infantry'],archers:['infantry','archer','archer','pike'],pikes:['pike','pike','archer','infantry'],siege:['infantry','pike','archer','ram']}[plan.composition];
-    for(let i=0;i<force;i++){
-      this.spawn(roster[i%roster.length],'red',970+(i%3)*24,clamp(crossing.y+Math.floor(i/3)*24-25,55,H-45));
-    }
-    this.balanceArmy('red');
-    this.message(`Rinforzi ${this.wave}: ${force} unità · ${crossing.name}.`);
+    this.nextWave=this.time+5;
+    if(!this.externalCommander||!this.enemyPlan)this.applyEnemyPlan(localRtsPlan(summarizeBattle(this,'red')));
   }
   damage(attacker,target){
     const d=attacker.kind==='unit'?TROOPS[attacker.type]:BUILDINGS[attacker.type];let amount=d.damage;
@@ -210,10 +243,12 @@ export class SiegeBattle{
     const sourceTerrain=terrainAt(attacker.x,attacker.y),targetTerrain=terrainAt(target.x,target.y);
     if(d.range>80){if(target.kind==='unit')amount*=targetTerrain.cover;if(sourceTerrain.elevation>targetTerrain.elevation)amount*=1.15;else if(sourceTerrain.elevation<targetTerrain.elevation)amount*=.85;}
     target.hp-=amount;target.lastHit=this.time;attacker.cooldown=d.rate;
+    this.audioEvent(attacker.type==='ram'?'ram':d.range>80?'arrow':'clash',target.x,target.y);
+    if(target.hp<=0)this.audioEvent(target.kind==='building'?'collapse':'fall',target.x,target.y);
     attacker.attackFlash=.22;attacker.heading=Math.atan2(target.y-attacker.y,target.x-attacker.x);
     this.shots.push({x:attacker.x,y:attacker.y,tx:target.x,ty:target.y,team:attacker.team,life:.28,maxLife:.28,ranged:d.range>80});
     this.effects.push({x:target.x,y:target.y,kind:target.hp<=0?'death':'hit',team:target.team,life:target.hp<=0?.8:.28});
-    if(target.hp<=0){if(target.kind==='unit')this.losses[target.team]++;else this.navRevision++;if(target.team==='red')this.gold+=target.kind==='building'?65:7;if(target.kind==='building')this.message(`${BUILDINGS[target.type].name} ${target.team==='red'?'nemica distrutta':'alleata perduta'}!`);}
+    if(target.hp<=0){if(target.kind==='unit')this.losses[target.team]++;else this.navRevision++;this[target.team==='red'?'gold':'enemyGold']+=target.kind==='building'?65:7;if(target.kind==='building')this.message(`${BUILDINGS[target.type].name} ${target.team==='red'?'nemica distrutta':'alleata perduta'}!`);}
   }
   move(u,destination,dt){
     u.moved=true;
@@ -252,17 +287,20 @@ export class SiegeBattle{
       return;
     }
     if(this.phase!=='combat')return;this.time+=dt;
+    if(!this.audioStarted){this.audioStarted=true;this.audioEvent('start');}
     for(const e of this.effects)e.life-=dt;this.effects=this.effects.filter(e=>e.life>0);
     for(const s of this.shots)s.life-=dt;this.shots=this.shots.filter(s=>s.life>0);
-    for(const b of this.buildings)if(b.remaining>0)b.remaining=Math.max(0,b.remaining-dt);
-    if(this.queue.length){const barracks=this.buildings.find(b=>b.team==='blue'&&b.type==='barracks'&&b.hp>0&&!b.remaining);if(barracks){this.queue[0].remaining-=dt;if(this.queue[0].remaining<=0){const q=this.queue.shift(),u=this.spawn(q.type,'blue',barracks.x+55,barracks.y+40);u.control=q.control||'auto';u.order={mode:'hold',x:u.x,y:u.y};this.balanceArmy('blue');this.commandRevision++;}}}
-    if(this.time>=this.incomeAt){this.incomeAt+=5;const farms=this.buildings.filter(b=>b.team==='blue'&&b.type==='farm'&&b.hp>0&&!b.remaining).length;this.gold+=12+farms*5;this.wood+=8+farms*12;for(const s of this.sites)if(s.owner==='blue'){this.gold+=15;this.wood+=5;}}
+    for(const b of this.buildings)if(b.remaining>0){b.remaining=Math.max(0,b.remaining-dt);if(!b.remaining)this.audioEvent('ready',b.x,b.y);}
+    for(const team of ['blue','red']){const queue=team==='blue'?this.queue:this.enemyQueue;
+      if(queue.length){const barracks=this.buildings.find(b=>b.team===team&&b.type==='barracks'&&b.hp>0&&!b.remaining);if(barracks){queue[0].remaining-=dt;if(queue[0].remaining<=0){const q=queue.shift(),u=this.spawn(q.type,team,barracks.x+(team==='blue'?55:-55),barracks.y+40);u.control=q.control||'auto';u.order={mode:'hold',x:u.x,y:u.y};if(team==='blue')this.audioEvent('ready',u.x,u.y);this.balanceArmy(team);this.commandRevision++;}}}
+    }
+    if(this.time>=this.incomeAt){this.incomeAt+=5;for(const team of ['blue','red']){const farms=this.buildings.filter(b=>b.team===team&&b.type==='farm'&&b.hp>0&&!b.remaining).length,sites=this.sites.filter(s=>s.owner===team).length;const gold=team==='blue'?'gold':'enemyGold',wood=team==='blue'?'wood':'enemyWood';this[gold]+=12+farms*5+sites*15;this[wood]+=8+farms*12+sites*5;}}
     if(this.time>=this.nextWave)this.invade();
-    this.developRealm();
+    this.developRealm();this.developRealm('red');
     if(this.time>=this.tacticsAt){this.tacticsAt=this.time+1;this.balanceArmy('blue');this.balanceArmy('red');}
     const alive=this.units.filter(u=>u.hp>0),buildings=this.buildings.filter(b=>b.hp>0);
     for(const u of alive)if(u.hp<u.maxHp&&this.time-(u.lastHit??-10)>6&&buildings.some(b=>b.team===u.team&&!b.remaining&&['keep','barracks'].includes(b.type)&&dist(u,b)<140)&&!alive.some(e=>e.team!==u.team&&dist(u,e)<220))u.hp=Math.min(u.maxHp,u.hp+5*dt);
-    for(const site of this.sites){const blue=alive.some(u=>u.team==='blue'&&u.type!=='ram'&&dist(u,site)<75),red=alive.some(u=>u.team==='red'&&u.type!=='ram'&&dist(u,site)<75);if(blue!==red){const team=blue?'blue':'red';if(site.owner!==team){site.progress+=dt*(blue?1:-1);if(Math.abs(site.progress)>=5){site.owner=team;site.progress=0;this.message(`${PASSAGES.find(p=>p.id===site.id).name}: ${team==='blue'?'conquistato, entrate +15 oro / +5 legno':'occupato dal nemico'}.`);}}else site.progress=0;}else site.progress=0;}
+    for(const site of this.sites){const blue=alive.some(u=>u.team==='blue'&&u.type!=='ram'&&dist(u,site)<75),red=alive.some(u=>u.team==='red'&&u.type!=='ram'&&dist(u,site)<75);if(blue!==red){const team=blue?'blue':'red';if(site.owner!==team){site.progress+=dt*(blue?1:-1);if(Math.abs(site.progress)>=5){site.owner=team;site.progress=0;this.audioEvent(team==='blue'?'capture':'alert',site.x,site.y);this.message(`${PASSAGES.find(p=>p.id===site.id).name}: ${team==='blue'?'conquistato, entrate +15 oro / +5 legno':'occupato dal nemico'}.`);}}else site.progress=0;}else site.progress=0;}
     for(const a of [...alive,...buildings]){
       a.cooldown=Math.max(0,a.cooldown-dt);const d=a.kind==='unit'?TROOPS[a.type]:BUILDINGS[a.type];if(!d.damage||a.remaining>0||a.hp<=0)continue;
       if(a.kind==='unit'&&(a.order?.mode==='move'||a.order?.mode==='flank'&&(a.team==='blue'?a.x<670:a.x>530))){if(dist(a,a.order)>14)this.move(a,a.order,dt);else a.order=null;continue;}
@@ -283,7 +321,7 @@ export class SiegeBattle{
     }
     for(const u of this.units)if(!u.moved){u.vx=0;u.vy=0;}
     this.units=this.units.filter(u=>u.hp>0);this.buildings=this.buildings.filter(b=>b.hp>0);
-    if(!this.buildings.some(b=>b.team==='blue'&&b.type==='keep'))this.phase='lost';
-    else if(!this.buildings.some(b=>b.team==='red'&&b.type==='keep'))this.phase='won';
+    if(!this.buildings.some(b=>b.team==='blue'&&b.type==='keep')){this.phase='lost';this.audioEvent('lose');}
+    else if(!this.buildings.some(b=>b.team==='red'&&b.type==='keep')){this.phase='won';this.audioEvent('win');}
   }
 }

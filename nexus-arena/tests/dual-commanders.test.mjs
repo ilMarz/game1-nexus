@@ -5,7 +5,7 @@ import {DualRtsCommanders} from '../rts-director.js';
 import {summarizeBattle} from '../rts-plans.js';
 import handler,{sanitizeRtsSnapshot,buildWarlordRequest,parseWarlordAnswer} from '../api/warlord.js';
 const bluePlan={passage:'north_bridge',composition:'balanced',objective:'barracks',maneuver:'flank',stance:'balanced'};
-const redPlan={passage:'south_bridge',composition:'siege',objective:'economy',maneuver:'assault',stance:'balanced'};
+const redPlan={passage:'south_bridge',composition:'siege',objective:'economy',maneuver:'assault',stance:'balanced',development:'train_infantry'};
 const reply=(team,plan=team==='blue'?bluePlan:redPlan)=>({...plan,source:'typesafe',commanderTeam:team,confidence:.8,latencyMs:100});
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 const advance=(b,seconds)=>{for(let i=0;i<seconds*20;i++)b.tick(.05);};

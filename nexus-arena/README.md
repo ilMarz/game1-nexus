@@ -1,12 +1,30 @@
 # Terre di Confine — RTS medievale
 
+## Effetti sonori
+
+Il gioco medievale include effetti originali sintetizzati localmente con Web Audio: scontri metallici, frecce, impatti degli arieti, crolli, cadute dei soldati, cantieri, reclutamenti pronti, conquiste, allarmi, ordini, avvio e fine battaglia. Nessun audio di navicelle, servizio esterno o download aggiuntivo. Il primo clic/tasto sblocca l’audio secondo le regole del browser.
+
+I controlli **Audio ON/OFF** e **Volume** sono nell’intestazione; le preferenze restano salvate localmente quando lo storage è disponibile. Pausa e scheda nascosta fermano le voci; gli eventi in silenzio non si accumulano per essere riprodotti alla ripresa. Il riavvio interrompe i suoni della partita precedente. Massimo 10 voci (8 per il combattimento), precedenza ai segnali importanti, leggera variazione di intonazione e varianti dei colpi, posizione stereo sulla mappa, volume comune con compressore. Phaser non inizializza un secondo motore audio.
+
+Gli eventi provengono dalla simulazione: i colpi suonano quando vengono sferrati, i crolli solo alla distruzione, le conferme solo al completamento di addestramento/costruzione. `rts-audio.js` contiene sintesi e mixer; un’anteprima WAV di 6,8 secondi è in `artifacts/anteprima-effetti-sonori.wav`.
+
 ## Vercel Web Analytics
 
 Le quattro pagine (`index.html`, `orbitale.html`, `strategie.html`, `arcade.html`) caricano il modulo condiviso `analytics.js`, che usa `inject` da `@vercel/analytics`. Il caricamento è separato dai moduli di gioco. Vite seleziona esplicitamente la modalità sviluppo o produzione; le visite locali durante `npm run dev` non vengono registrate.
 
 Per raccogliere visite e visualizzazioni, abilita Web Analytics nel progetto Vercel e pubblica una nuova build. I dati saranno visibili nel pannello Analytics dopo le visite al deployment. Non servono chiavi client o modifiche al backend del gioco. Integrazione: [documentazione ufficiale Vercel](https://vercel.com/docs/analytics/quickstart).
 
+## Avversario attivo e produzione simmetrica
+
+Il Jev nemico gestisce esercito e sviluppo insieme: sceglie reclutamenti, caserme, alloggi, segherie e torri usando le stesse funzioni e gli stessi costi del giocatore. Parte con 320 oro e 220 legno; ha una propria coda, tempi di addestramento/costruzione, entrate da segherie e passaggi, capienza e premi per le eliminazioni. Le vecchie ondate gratuite sono state eliminate. Distruggere la sua economia riduce le entrate; distruggere la caserma sospende il reclutamento fino alla ricostruzione.
+
+Le rivalutazioni rimangono ogni 5 secondi, ma non azzerano i percorsi per un cambio di composizione o di sviluppo. Una rotta/obiettivo resta impegnata per 30 secondi e un gruppo lanciato può avanzare per almeno 25 secondi prima di un normale cambio di piano. Le emergenze interrompono l’impegno. Questa stabilità vale anche per il Consigliere alleato in autonomia; le priorità esplicite del giocatore prevalgono subito.
+
+Senza minacce reali il nemico mantiene un presidio e prepara attacchi. Una forza insufficiente per fortezza/torri passa a un’incursione su segheria/caserma o a un passaggio; non attende indefinitamente l’assalto perfetto. La guarnigione iniziale conserva tipi di unità diversi, lasciando anche fanteria nel gruppo offensivo.
+
 ## Indicazioni al Consigliere
+
+**Delega difensiva d’emergenza:** anche fuori da Sviluppa, il Consigliere alleato attivo può spendere quando nemici minacciano gli edifici e la forza dei difensori vicini è insufficiente. La valutazione considera posizione, salute e tipo delle unità; tiene conto anche dei soldati manuali presenti, senza modificarne gli ordini. La delega consente fanteria, lancieri, arcieri, torri, ricostruzione della caserma e alloggi necessari; esclude arieti e segherie. Un primo rinforzo difensivo può essere avviato dalle regole immediate del campo, prima della prossima rivalutazione Jev; il modello riceve poi la stessa autorizzazione temporanea e opzioni limitate alla difesa. Le nuove operazioni d’emergenza sono distanziate di almeno 5 secondi e rispettano risorse, capienza, code e tempi normali. La delega termina appena attacco o insufficienza della difesa vengono meno; code e cantieri già pagati proseguono. La priorità scelta dal giocatore resta memorizzata. Disattivando il Consigliere si sospende anche questa delega.
 
 A destra puoi cambiare la priorità con **Difendi**, **Sviluppa il regno**, **Attacca**, **Aspetta** oppure tornare all’autonomia equilibrata. La priorità persiste fino al prossimo comando ed entra nella fotografia inviata a Jev. Le reazioni sulle unità automatiche sono immediate; il nuovo piano viene richiesto rispettando il limite minimo di 5 secondi. Le risposte pendenti della vecchia priorità vengono scartate.
 
@@ -55,7 +73,7 @@ Gli attaccanti si radunano sulla propria sponda: servono 6 unità per fortezza/t
 
 Sotto il 28% di salute, i soldati automatici tornano alla base e riprendono servizio dall’80%. Entrambi gli eserciti recuperano 5 punti salute al secondo entro 140 metri da fortezza/caserma operativa, dopo 6 secondi senza colpi e senza nemici entro 220 metri. Anche i soldati manuali possono recuperare, ma non vengono spostati dal Consigliere. I resoconti mostrano difesa, attacco, raccolta e recupero. Jev sceglie il piano; le reazioni immediate seguono queste regole condivise della simulazione.
 
-I rinforzi nemici arrivano inizialmente a 45 secondi, poi ogni 50–60 secondi, con massimo 8 per gruppo e 30 nemici vivi. Distruggere la segheria dimezza i gruppi; distruggere la caserma li blocca.
+Il nemico recluta e costruisce con la propria economia: non riceve gruppi gratuiti a intervalli fissi.
 
 ## La nuova modalità
 
@@ -65,12 +83,12 @@ I rinforzi nemici arrivano inizialmente a 45 secondi, poi ogni 50–60 secondi, 
 - **Truppe:** spadaccini, lancieri, arcieri e arieti. Gli spadaccini hanno bonus contro i lancieri; i lancieri contro gli arieti. Gli arieti infliggono triplo danno agli edifici e resistono alle frecce, ma vanno scortati.
 - **Economia:** ogni 5 secondi ricevi 12 oro e 8 legno, più 5 oro e 12 legno per segheria. Ogni attraversamento presidiato per 5 secondi passa sotto il tuo controllo e aggiunge 15 oro e 5 legno ogni 5 secondi. Le presenze contrapposte fermano la conquista; gli arieti non conquistano.
 - **Edifici:** puoi costruire caserme, torri, segherie e alloggi sulla tua sponda anche durante il combattimento. Le torri e le fortezze sparano; le caserme permettono il reclutamento; gli alloggi aumentano di 10 il limite iniziale di 30 unità. La coda di addestramento è condivisa fra le caserme, con massimo 8 unità in attesa. La fortezza può essere riparata.
-- **Invasioni:** Jev comanda subito i soldati già presenti. I primi rinforzi arrivano dopo 45 secondi; quelli successivi ogni 50–60 secondi. Composizione e rotta seguono l’ultimo piano accettato. La quantità è fissata dal gioco, da 6 a 8 per gruppo, fino a 30 nemici vivi: il modello non può aumentarla. Distruggere la caserma nemica blocca i nuovi rinforzi.
+- **Avversario:** Jev comanda subito il proprio esercito, paga i reclutamenti e i cantieri, conquista risorse e lancia offensive mantenendo una guarnigione. Può ricostruire una caserma perduta se dispone di risorse.
 - **Pausa:** congela simulazione e interazioni di gioco; il cambio scheda mette automaticamente in pausa. Il riavvio azzera tutta la partita.
 
 ## Jev, comandante del regno rivale
 
-`POST /api/warlord` riceve una fotografia validata di unità, posizioni, salute, edifici, cantieri, risorse, perdite e controllo degli attraversamenti. Jev/TypeSafe risponde a cinque Choice: **passaggio, composizione, obiettivo, manovra e dottrina**. Nessun campo libero viene eseguito come codice o istruzione di gioco. Le opzioni sono azioni implementate; un piano con arieti e un guado non viene accettato. La difesa è disponibile anche per ricomporre le forze.
+`POST /api/warlord` riceve una fotografia validata di unità, posizioni, salute, edifici, cantieri, risorse, perdite e controllo degli attraversamenti. Jev/TypeSafe risponde a sei Choice: **passaggio, composizione, obiettivo, manovra, dottrina e sviluppo**. Nessun campo libero viene eseguito come codice o istruzione di gioco. Le opzioni sono azioni implementate; un piano con arieti e un guado non viene accettato. La difesa è disponibile anche per ricomporre le forze.
 
 L’analisi iniziale congela il tempo. Dopo la risposta, il Jev nemico rivaluta ogni **5 secondi di simulazione**, oppure prima in presenza di eventi rilevanti, con intervallo minimo di 5 secondi. Gli ordini cambiano rotta e bersaglio delle truppe attive, mantenendo tipo, salute e posizione. La composizione cambia solo i rinforzi futuri. L’assalto combatte lungo il percorso; l’aggiramento evita inseguimenti fino all’arrivo nella sponda occidentale; la difesa protegge gli edifici di casa e intercetta gli incursori. Il Jev alleato usa gli stessi comportamenti dal lato opposto della mappa, rispettando il controllo manuale. Gli arieti esistenti usano comunque un ponte compatibile. Un piano confermato conserva i percorsi già in corso; bersagli distrutti vengono sostituiti.
 

@@ -35,11 +35,11 @@ test('wounded auto troops retreat and heal safely on either side, manual troops 
 test('recent hits and nearby hostiles prevent safe-base healing',()=>{
   const b=battle();b.units=[];const u=b.spawn('infantry','blue',220,380);u.hp=40;u.lastHit=0;advance(b,5);assert.equal(u.hp,40);const foe=b.spawn('ram','red',400,450);advance(b,2);assert.equal(u.hp,40);foe.hp=0;advance(b,1);assert.ok(u.hp>40);
 });
-test('enemy replacements are bounded in time and population, and production raids matter',()=>{
-  const intact=battle();intact.externalCommander=true;intact.applyEnemyPlan(plan);intact.wave=100;intact.invade();assert.equal(intact.units.filter(u=>u.team==='red').length,16);assert.ok(intact.nextWave-intact.time>=50);
-  const raided=battle();raided.externalCommander=true;raided.applyEnemyPlan(plan);raided.buildings.find(b=>b.team==='red'&&b.type==='farm').hp=0;raided.wave=100;raided.invade();assert.equal(raided.units.filter(u=>u.team==='red').length,12);
-  for(let i=0;i<10;i++)intact.invade();assert.equal(intact.units.filter(u=>u.team==='red').length,30);
+test('enemy economy has the same passive income and farm losses reduce production',()=>{
+  const intact=battle();intact.nextWave=10000;const gold=intact.enemyGold,wood=intact.enemyWood;advance(intact,5.1);assert.equal(intact.enemyGold,gold+17);assert.equal(intact.enemyWood,wood+20);
+  const raided=battle();raided.nextWave=10000;raided.buildings.find(b=>b.team==='red'&&b.type==='farm').hp=0;advance(raided,5.1);assert.equal(raided.enemyGold,gold+12);assert.equal(raided.enemyWood,wood+8);
 });
+
 test('the provider explicitly chooses a validated doctrine; incomplete live answers are rejected',()=>{
   const req=buildWarlordRequest(summarizeBattle(battle(),'blue'));assert.ok(req.questions.stance);assert.ok(req.state.front);const answers=Object.fromEntries(['passage','objective','maneuver','stance'].map(k=>[k,{type:'choice',choice:plan[k],confidence:.8}]));assert.equal(parseWarlordAnswer({answers},req.questions.maneuver.criteria,'blue').stance,'balanced');delete answers.stance;assert.equal(parseWarlordAnswer({answers},req.questions.maneuver.criteria,'blue'),null);
 });

@@ -7,6 +7,7 @@ import {ADVISOR_ORDERS,respectOrder} from './rts-orders.js';
 import {DualRtsCommanders,FALLBACK_REASONS} from './rts-director.js';
 import {drawTerrain} from './rts-art.js';
 import {AdvisorJournal} from './rts-journal.js';
+import {BattleAudio} from './rts-audio.js';
 import './rts.css';
 
 const $=id=>document.getElementById(id);
@@ -14,6 +15,14 @@ const text=(id,value)=>{if($(id).textContent!==String(value))$(id).textContent=S
 let battle=new SiegeBattle(),selected=new Set(),paused=false,attackMode=false,building=null,scene,noticeEnd=0,lastUI=0;
 const commanders=new DualRtsCommanders(),director=commanders.enemy,allyDirector=commanders.ally;let terrainVisible=true;
 const ink={blue:0x558eb4,red:0xb75c45,blueLight:0xa1d5ee,redLight:0xf1a77b};
+let audioStorage;try{audioStorage=localStorage;}catch{}
+const audio=new BattleAudio({storage:audioStorage});
+function audioUI(){text('audioToggle',audio.supported?(audio.enabled?'Audio ON':'Audio OFF'):'Audio non disponibile');$('audioToggle').setAttribute('aria-pressed',String(audio.enabled));$('audioToggle').setAttribute('aria-label',audio.enabled?'Disattiva gli effetti sonori':'Attiva gli effetti sonori');$('audioToggle').disabled=!audio.supported;$('audioVolume').value=String(Math.round(audio.volume*100));$('audioVolume').disabled=!audio.supported;}
+document.addEventListener('pointerdown',()=>{void audio.unlock().then(audioUI);},{capture:true});
+document.addEventListener('keydown',()=>{void audio.unlock().then(audioUI);},{capture:true});
+$('audioToggle').onclick=()=>{audio.setEnabled(!audio.enabled);if(audio.enabled)void audio.unlock().then(()=>{audio.play({type:'order'});audioUI();});audioUI();};
+$('audioVolume').oninput=()=>{audio.setVolume(Number($('audioVolume').value)/100);audioUI();};
+audioUI();
 const unitIcons={infantry:'⚔',pike:'⚑',archer:'➶',ram:'▰'};
 let journal=new AdvisorJournal();
 function renderJournal(){
@@ -50,8 +59,8 @@ function order(mode,x,y,target=null){if(!usable())return;if(!selected.size){noti
 function hold(){if(!usable())return;if(!selected.size){notice('Seleziona le truppe da presidiare.');return;}battle.takeControl([...selected]);notice('Presidio manuale: il tuo Stratega non cambierà questi ordini.');refresh();}
 function retreat(){if(order('move',275,410))notice('Rientro alla fortezza.');}
 function toggleAttack(){if(!usable())return;attackMode=!attackMode;building=null;notice(attackMode?'Scegli dove avanzare: le truppe combatteranno lungo il percorso.':'Ordine di attacco annullato.');refresh();}
-function togglePause(){if(battle.phase!=='combat')return;paused=!paused;refresh();}
-function restart(){commanders.reset();battle=new SiegeBattle();journal=new AdvisorJournal();$('allyLog').replaceChildren();selected.clear();paused=false;attackMode=false;building=null;lastUI=0;scene?.scene.restart();notice('Recluta il tuo esercito: il tuo Stratega guiderà le truppe che gli affidi.');refresh();}
+function togglePause(){if(battle.phase!=='combat')return;paused=!paused;audio.setPaused(paused);refresh();}
+function restart(){audio.stop();audio.setPaused(false);commanders.reset();battle=new SiegeBattle();journal=new AdvisorJournal();$('allyLog').replaceChildren();selected.clear();paused=false;attackMode=false;building=null;lastUI=0;scene?.scene.restart();notice('Recluta il tuo esercito: il tuo Stratega guiderà le truppe che gli affidi.');refresh();}
 $('selectAll').onclick=all;$('attack').onclick=toggleAttack;$('hold').onclick=hold;$('retreat').onclick=retreat;
 $('startQuick').onclick=()=>{commanders.start(battle,$('provider').value,$('allyEnabled').checked);notice($('provider').value==='typesafe'?'I Consiglieri Strateghi stanno studiando eserciti, terreno e ordini manuali…':'Comandanti locali attivi: nessuna chiamata allo Stratega.');refresh();};
 $('allyEnabled').onchange=()=>{commanders.setAllyEnabled(battle,$('allyEnabled').checked);notice($('allyEnabled').checked?'Il tuo Stratega guiderà le unità disponibili. I soldati manuali restano ai tuoi ordini.':'Stratega alleato sospeso. Le sue truppe presidiano la posizione.');refresh();};
@@ -66,7 +75,7 @@ for(const p of PASSAGES){const button=document.createElement('button');button.da
 $('pause').onclick=togglePause;$('restart').onclick=restart;
 $('repair').onclick=()=>{if(!usable())return;notice(battle.repair()||'Fortezza riparata: +260 integrità.');refresh();};
 $('overlayAction').onclick=()=>{if(['won','lost'].includes(battle.phase))restart();else togglePause();};
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&battle.phase==='combat'){paused=true;refresh();}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&battle.phase==='combat'){paused=true;audio.setPaused(true);refresh();}});
 document.addEventListener('keydown',e=>{
   if(e.target.closest('input,select,textarea')||e.repeat)return;
   const key=e.key.toLowerCase();if(key===' '){e.preventDefault();togglePause();return;}
@@ -81,7 +90,7 @@ function refresh(){
   text('gold',battle.gold);text('wood',battle.wood);text('population',`${battle.population} / ${battle.cap}`);
   const keep=battle.buildings.find(b=>b.team==='blue'&&b.type==='keep');text('keep',`${Math.max(0,Math.ceil(keep?.hp||0))} / 1600`);
   text('clock',`${String(Math.floor(battle.time/60)).padStart(2,'0')}:${String(Math.floor(battle.time%60)).padStart(2,'0')}`);
-  text('status',battle.phase==='prep'?'SCHIERAMENTO LIBERO':battle.phase==='planning'?'ANALISI DEL COMANDANTE…':battle.phase==='won'?'IL REGNO È SALVO':battle.phase==='lost'?'FORTEZZA CADUTA':paused?'BATTAGLIA IN PAUSA':`RINFORZI TRA ${Math.max(0,Math.ceil(battle.nextWave-battle.time))} S`);
+  text('status',battle.phase==='prep'?'SCHIERAMENTO LIBERO':battle.phase==='planning'?'ANALISI DEL COMANDANTE…':battle.phase==='won'?'IL REGNO È SALVO':battle.phase==='lost'?'FORTEZZA CADUTA':paused?'BATTAGLIA IN PAUSA':battle.tactics.red.attack?'IL NEMICO AVANZA':'BATTAGLIA IN CORSO');
   text('selection',selected.size?`${selected.size} ${selected.size===1?'soldato selezionato':'unità selezionate'}`:'Nessuna unità selezionata');
   const types={};for(const id of selected){const u=battle.entity(id);if(u)types[u.type]=(types[u.type]||0)+1;}
   const manualSelected=[...selected].filter(id=>battle.entity(id)?.control==='manual').length;
@@ -95,7 +104,7 @@ function refresh(){
   for(const id of ['selectAll','attack','hold','retreat','repair','delegate','manual'])$(id).disabled=locked;
   $('allyEnabled').disabled=terminal||battle.phase==='planning';
   for(const button of document.querySelectorAll('[data-advisor-order]')){button.disabled=locked;button.setAttribute('aria-pressed',String(button.dataset.advisorOrder===battle.advisorOrder));}
-  text('advisorPriority',battle.advisorOrder==='develop'?'Sviluppo delegato: Jev può spendere oro e legno per unità e strutture. Cambia priorità per fermare nuovi ordini automatici.':battle.advisorOrder==='wait'?'Attesa: posizioni ferme, nessuna nuova spesa automatica.':battle.advisorOrder==='defend'?'Difesa: proteggi la base con le truppe automatiche.':battle.advisorOrder==='attack'?'Offensiva: aumenta la forza d’attacco mantenendo un presidio.':'Tu recluti e costruisci. Il Consigliere bilancia attacco e difesa.');
+  text('advisorPriority',battle.emergencyDefense?.active?'EMERGENZA: difensori insufficienti. Lo Stratega può pagare rinforzi e strutture difensive finché serve.':battle.advisorOrder==='develop'?'Sviluppo delegato: Jev può spendere oro e legno per unità e strutture. Cambia priorità per fermare nuovi ordini automatici.':battle.advisorOrder==='wait'?'Attesa: posizioni ferme, nessuna nuova spesa automatica.':battle.advisorOrder==='defend'?'Difesa: proteggi la base con le truppe automatiche.':battle.advisorOrder==='attack'?'Offensiva: aumenta la forza d’attacco mantenendo un presidio.':'Tu recluti e costruisci. Il Consigliere bilancia attacco e difesa.');
   text('buildHint',building?`${BUILDINGS[building].name}: clicca il terreno a ovest del fiume. Esc annulla.`:'Scegli un edificio, poi un terreno libero sulla tua sponda.');
   const hasBarracks=battle.buildings.some(b=>b.team==='blue'&&b.type==='barracks'&&!b.remaining);
   text('queue',battle.queue.length?`${hasBarracks?'In addestramento':'In attesa di una caserma'}: ${TROOPS[battle.queue[0].type].name} · ${Math.ceil(battle.queue[0].remaining)} s · ${battle.queue[0].control==='manual'?'tuo controllo':'affidato allo Stratega'}${battle.queue.length>1?` · altri ${battle.queue.length-1} in coda`:''}`:'Caserma pronta. Scegli tu quali truppe creare.');
@@ -209,6 +218,7 @@ class Valley extends Phaser.Scene{
   update(t,delta){
     commanders.tick(battle,paused);
     if(!paused){this.accumulator+=Math.min(delta/1000,.2);while(this.accumulator>=1/30){battle.tick(1/30);this.accumulator-=1/30;}}
+    audio.consume(battle,{paused,hidden:document.hidden});
     const g=this.g;if(!g)return;g.clear();
     if(terrainVisible){for(const z of ZONES){g.lineStyle(1,z.kind==='hill'?0xe9dda1:0xc3d29d,.5).strokeEllipse(z.x,z.y,z.rx*2,z.ry*2);}for(const rock of CLIFFS)g.lineStyle(1,0xd0c59a,.25).strokeCircle(rock.x,rock.y,rock.radius+8);}
     for(const site of battle.sites){const p=PASSAGES.find(p=>p.id===site.id),r=p.siege?24:17,c=site.owner?ink[site.owner]:0xd6c58a;g.lineStyle(1.5,c,.65).strokeCircle(site.x,site.y,r);g.fillStyle(c,.12).fillCircle(site.x,site.y,r);g.fillStyle(c).fillCircle(site.x,site.y,3);if(site.progress){g.lineStyle(3,site.progress>0?ink.blueLight:ink.redLight);g.beginPath();g.arc(site.x,site.y,r+3,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.abs(site.progress)/5);g.strokePath();}}
@@ -236,5 +246,5 @@ class Valley extends Phaser.Scene{
     if(noticeEnd&&performance.now()>noticeEnd){text('notice','');noticeEnd=0;}
   }
 }
-new Phaser.Game({type:Phaser.AUTO,parent:'field',width:W,height:H,backgroundColor:'#708353',antialias:true,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[Valley],input:{activePointers:2}});
+new Phaser.Game({type:Phaser.AUTO,audio:{noAudio:true},parent:'field',width:W,height:H,backgroundColor:'#708353',antialias:true,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:[Valley],input:{activePointers:2}});
 refresh();

@@ -1,5 +1,26 @@
 # Verifica di Terre di Confine
 
+## Effetti sonori medievali · 25 ottobre 2026
+
+- 187 test: 7 nuovi casi su buffer audio finiti con margine di ampiezza e chiusura graduale, inizializzazione soltanto dopo interazione, mute e volume persistenti, stereo, limite di voci con precedenza ai segnali importanti, pulizia delle sorgenti, assenza di riproduzione degli eventi in pausa/nascosti/muti, fallback senza Web Audio o storage, eventi delle armi/distruzione, reclutamenti/conquista/fine partita senza ripetizioni per fotogramma. I test del mixer usano un contesto simulato; i buffer sono realmente generati e analizzati numericamente.
+- Browser: volume 70 → 68 e Audio OFF, entrambe le preferenze conservate dopo ricarica; ripristinati Audio ON e volume 70. Avviata una partita locale per esercitare il motore Web Audio senza chiamate ai modelli, poi provate pausa e ripresa. Nessun errore JavaScript nei log controllati. Layout controllato a 390 px e 820 px senza overflow orizzontale; riportata una partita nuova con provider TypeSafe e audio ON/70. Nessuna valutazione soggettiva di ascolto dichiarata; è fornita un’anteprima WAV originale di 6,8 secondi.
+- La skill audio-design e i suoi riferimenti sono inclusi nelle skill del repository. Build di produzione riuscita; resta l’avviso relativo al bundle Phaser condiviso.
+
+## Delega difensiva d’emergenza · 25 ottobre 2026
+
+- 180 test passati, inclusi 9 nuovi casi: produzione difensiva senza Sviluppa, costo effettivo e tempo di addestramento, assenza di autorizzazione con difesa sufficiente o minacce lontane, valutazione di salute/posizione, revoca automatica, conservazione degli ordini già pagati, rifiuto di sviluppo economico offensivo e risposte tardive, priorità Aspetta e soldati manuali preservati, Consigliere sospeso, opzioni API soltanto difensive, caserma/torre con costi e tempi normali, messaggi di apertura/chiusura.
+- Il server calcola l’emergenza dai dati validati del campo; non accetta un flag client di autorizzazione. Il motore ricontrolla la condizione prima di ogni spesa, esclude segherie/arieti e alloggi non necessari, mantiene almeno 5 s fra operazioni d’emergenza. I primi contromovimenti di produzione sono regole locali immediate, dichiarate come notizie dal campo, senza nuove chiamate AI dedicate.
+- Prova con Jev/TypeSafe reale su uno scenario controllato di base senza difensori e un ariete in arrivo: risposta validata in 343 ms, scelta `train_pike`; oro 320 → 295 e legno 220 → 205, lanciere in coda. Eliminata la minaccia, autorizzazione revocata al passo successivo e ordine già pagato conservato.
+- Build di produzione riuscita. L’interfaccia esplicita la delega e mostra un avviso mentre è attiva; il diario conserva inizio, operazioni effettive e termine.
+
+## Avversario attivo e sviluppo simmetrico · 25 ottobre 2026
+
+- 171 test passati: 8 nuovi casi per nemico non passivo, impegno di rotta durante rivalutazioni frequenti, richiamo per emergenze reali, danni a edifici tramite movimento/combattimento effettivi, sviluppo pagato con fondi separati, coda e tempi normali, alloggi/capienza, conservazione dei percorsi per piani di sola produzione e telemetria con risorse/coda nemiche. Aggiornati i vecchi test delle ondate gratuite per verificare produzione ed economia reali.
+- Produzione e costruzione generalizzate per i due schieramenti; stesso saldo iniziale, entrate, costi, tempi, bonus da passaggi e ricompense per eliminazioni. Nessuna creazione gratuita di gruppi nemici. La caserma nemica può essere ricostruita.
+- I piani nemici non si chiudono in difesa senza minacce reali; gruppi piccoli scelgono obiettivi accessibili. Rotta e bersaglio hanno un impegno di 30 s, con 25 s di avanzata per un assalto lanciato; emergenze e priorità umane esplicite possono interromperlo. Modificare soltanto produzione/composizione non azzera più i percorsi.
+- Prove deterministiche: un gruppo nemico attraversa la sponda del giocatore nonostante richieste che alternano rotta ogni 5 s; su mappa con edifici ma senza truppe alleate danneggia una segheria entro 55 s. La difesa priva di nuovi reclutamenti può ancora perdere una partita completa entro 300 s.
+- Jev/TypeSafe reale: risposta nemica validata in 196 ms, con aggiramento dal ponte nord e costruzione di una segheria. Nella partita browser entrambi i regni hanno sviluppato le basi; il nemico ha costruito una seconda segheria, reclutato soldati e lanciato un altro gruppo a 38 s. A 42 s il campo indicava “Il nemico avanza”, con soldati rossi sulla sponda occidentale del ponte nord. Screenshot in `artifacts/nemico-sviluppo-offensiva.jpg`; nessun errore JavaScript nei log controllati. Riportata una nuova partita in preparazione al termine.
+
 ## Rivalutazioni ogni cinque secondi · 25 ottobre 2026
 
 - Entrambi i comandanti avviano una rivalutazione ogni 5 secondi di simulazione, misurati dall’avvio della richiesta precedente. La latenza della risposta non aggiunge un nuovo intervallo completo. Un’analisi ancora pendente non viene duplicata; pausa, fine partita e ordini manuali conservano il comportamento precedente.
