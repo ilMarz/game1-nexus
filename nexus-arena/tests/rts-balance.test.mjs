@@ -17,7 +17,7 @@ test('doctrines change the allocation but even an offensive plan retains defende
   assert.deepEqual(counts,{offensive:2,balanced:3,defensive:5});assert.equal(normalizeRtsPlan({...plan,stance:'reckless'}),null);
 });
 test('unsupported soldiers do not trickle into a fortress; enough troops launch together',()=>{
-  const b=battle();b.applyAllyPlan({...plan,objective:'keep'});gather(b);assert.equal(b.tactics.blue.attack,0);assert.equal(b.tactics.blue.rally,5);b.spawn('infantry','blue',440,225);b.spawn('pike','blue',440,245);b.balanceArmy('blue');gather(b);assert.equal(b.tactics.blue.attack,6);assert.equal(b.tactics.blue.defense,4);
+  const b=battle();b.applyAllyPlan({...plan,objective:'keep'});gather(b);assert.equal(b.tactics.blue.attack,0);assert.equal(b.tactics.blue.rally,5);b.spawn('infantry','blue',440,225);b.spawn('knight','blue',440,245);b.balanceArmy('blue');gather(b);assert.equal(b.tactics.blue.attack,6);assert.equal(b.tactics.blue.defense,4);
 });
 test('a home emergency recalls auto troops without replacing a human target order',()=>{
   const b=battle(),manual=b.units.find(u=>u.team==='blue'),keep=b.buildings.find(u=>u.team==='red'&&u.type==='keep');b.command([manual.id],'target',keep.x,keep.y,keep.id);const order=manual.order;b.applyAllyPlan({...plan,stance:'offensive'});gather(b);assert.ok(b.tactics.blue.attack>0);const raider=b.spawn('infantry','red',250,420);b.balanceArmy('blue');assert.ok(b.tactics.blue.emergency);assert.equal(b.tactics.blue.attack,0);assert.equal(b.tactics.blue.defense,7);assert.equal(manual.order,order);raider.hp=0;b.time+=5;b.balanceArmy('blue');assert.ok(b.tactics.blue.emergency);b.time+=2;b.balanceArmy('blue');assert.equal(b.tactics.blue.emergency,false);assert.ok(b.tactics.blue.rally>0);

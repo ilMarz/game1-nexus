@@ -1,11 +1,11 @@
 // One source of truth for the painted terrain, navigation, combat and Jev.
 export const W=1200,H=760;
 export const PASSAGES=Object.freeze([
-  {id:'north_ford',name:'Guado dei salici',y:100,half:29,kind:'ford',siege:false,speed:.52,weakness:'Stretto e lento; aggira le torri a nord. Solo fanteria.'},
+  {id:'north_ford',name:'Guado dei salici',y:100,half:29,kind:'ford',siege:false,speed:.52,weakness:'Stretto e lento; aggira le torri a nord. Fanteria e cavalleria.'},
   {id:'north_bridge',name:'Ponte della corona',y:225,half:45,kind:'stone',siege:true,speed:1,weakness:'Passaggio largo per gli arieti; esposto alle alture.'},
-  {id:'ruins',name:'Passo delle rovine',y:380,half:25,kind:'ruins',siege:false,speed:.68,weakness:'Scorciatoia centrale molto stretta. Solo fanteria.'},
+  {id:'ruins',name:'Passo delle rovine',y:380,half:25,kind:'ruins',siege:false,speed:.68,weakness:'Scorciatoia centrale molto stretta. Fanteria e cavalleria.'},
   {id:'south_bridge',name:'Ponte del mulino',y:535,half:45,kind:'wood',siege:true,speed:1,weakness:'Accesso rapido alle segherie; vulnerabile agli aggiramenti.'},
-  {id:'south_ford',name:'Guado dei canneti',y:660,half:29,kind:'ford',siege:false,speed:.52,weakness:'Accesso meridionale nascosto dalla vegetazione, ma lento. Solo fanteria.'}
+  {id:'south_ford',name:'Guado dei canneti',y:660,half:29,kind:'ford',siege:false,speed:.52,weakness:'Accesso meridionale nascosto dalla vegetazione, ma lento. Fanteria e cavalleria.'}
 ]);
 export const ZONES=Object.freeze([
   {id:'hill_west',name:'Altura della corona',kind:'hill',x:425,y:178,rx:92,ry:66},
@@ -25,7 +25,7 @@ export function terrainAt(x,y){
   return {kind:'grass',name:'Pianura',speed:1,elevation:0,cover:1,range:1,description:'Movimento libero. Nessuna copertura contro gli arcieri.'};
 }
 export function walkable(x,y,type='infantry',buildings=[],preferred=null){
-  const radius=type==='ram'?15:8;
+  const radius=type==='ram'?15:type==='knight'?12:8;
   if(x<24||x>W-24||y<40||y>H-30)return false;
   if(x>550-radius*.4&&x<650+radius*.4){
     const p=PASSAGES.find(p=>Math.abs(y-p.y)<p.half-radius*.7);

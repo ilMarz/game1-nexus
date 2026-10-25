@@ -17,7 +17,7 @@ test('a marching soldier crosses the river only over a bridge and reaches either
 test('recruiting spends resources once, completes in combat and respects capacity',()=>{
   const b=new SiegeBattle();assert.equal(b.train('ram'),null);assert.equal(b.gold,220);assert.equal(b.wood,140);
   b.phase='combat';advance(b,8.1);assert.equal(b.units.filter(u=>u.team==='blue'&&u.type==='ram').length,1);assert.equal(b.queue.length,0);
-  b.gold=100000;b.wood=100000;while(b.population<30)b.spawn('pike','blue',100,100);assert.match(b.train('pike'),/completo/);
+  b.gold=100000;b.wood=100000;while(b.population<30)b.spawn('knight','blue',100,100);assert.match(b.train('knight'),/completo/);
 });
 test('construction rejects overlap and enemy land; completed buildings change income and capacity',()=>{
   const b=new SiegeBattle();assert.match(b.build('tower',155,380),/vicino/);assert.match(b.build('house',900,600),/territorio/);
@@ -29,9 +29,9 @@ test('occupying a bridge captures income, while contested occupation cannot capt
   const c=new SiegeBattle();c.units=[];c.spawn('ram','blue',600,225).order={mode:'hold'};c.phase='combat';advance(c,6);assert.equal(c.sites.find(s=>s.id==='north_bridge').owner,null);
   const d=new SiegeBattle();d.units=[];d.spawn('infantry','blue',535,225).order={mode:'hold'};d.spawn('infantry','red',665,225).order={mode:'hold'};d.phase='combat';d.nextWave=10000;advance(d,6);assert.equal(d.sites.find(s=>s.id==='north_bridge').owner,null);
 });
-test('arieti inflict siege damage and spearmen counter them; arrows resist siege armor',()=>{
+test('arieti inflict siege damage and knights counter them; arrows resist siege armor',()=>{
   const b=new SiegeBattle(),ram=b.spawn('ram','blue',900,380),tower=b.buildings.find(b=>b.team==='red'&&b.type==='tower');const hp=tower.hp;b.damage(ram,tower);assert.equal(hp-tower.hp,TROOPS.ram.damage*3);
-  const pike=b.spawn('pike','red',900,380),archer=b.spawn('archer','red',900,380);let health=ram.hp;b.damage(pike,ram);assert.equal(health-ram.hp,TROOPS.pike.damage*2);health=ram.hp;b.damage(archer,ram);assert.ok(health-ram.hp<4);
+  const knight=b.spawn('knight','red',900,380),archer=b.spawn('archer','red',900,380);let health=ram.hp;b.damage(knight,ram);assert.equal(health-ram.hp,TROOPS.knight.damage*2);health=ram.hp;b.damage(archer,ram);assert.ok(health-ram.hp<4);
 });
 test('enemy recruitment pays normal costs and barracks destruction suspends its training',()=>{
   const b=new SiegeBattle();b.phase='combat';b.externalCommander=true;b.applyEnemyPlan({passage:'south_ford',composition:'archers',objective:'economy',maneuver:'flank',development:'train_archer'});const gold=b.enemyGold;b.tick(.05);assert.equal(b.enemyQueue.length,1);assert.equal(b.enemyGold,gold-TROOPS.archer.gold);assert.equal(b.units.filter(u=>u.team==='red').length,8);
@@ -39,11 +39,11 @@ test('enemy recruitment pays normal costs and barracks destruction suspends its 
 });
 
 test('a destroyed barracks suspends paid recruitment until a replacement is completed',()=>{
-  const b=new SiegeBattle();b.train('archer');b.buildings=b.buildings.filter(b=>b.team!=='blue'||b.type!=='barracks');b.phase='combat';advance(b,8);assert.equal(b.queue[0].remaining,4);assert.match(b.train('pike'),/caserma/);
+  const b=new SiegeBattle();b.train('archer');b.buildings=b.buildings.filter(b=>b.team!=='blue'||b.type!=='barracks');b.phase='combat';advance(b,8);assert.equal(b.queue[0].remaining,4);assert.match(b.train('knight'),/caserma/);
   b.addBuilding('barracks','blue',230,245,2);advance(b,6.1);assert.equal(b.queue.length,0);
 });
 test('destroying a keep ends the battle and freezes recruitment and income',()=>{
-  for(const [team,result]of [['blue','lost'],['red','won']]){const b=new SiegeBattle();b.phase='combat';b.buildings.find(b=>b.team===team&&b.type==='keep').hp=0;b.tick(.05);assert.equal(b.phase,result);const time=b.time,gold=b.gold;advance(b,30);assert.equal(b.time,time);assert.equal(b.gold,gold);assert.match(b.train('pike'),/terminata/);}
+  for(const [team,result]of [['blue','lost'],['red','won']]){const b=new SiegeBattle();b.phase='combat';b.buildings.find(b=>b.team===team&&b.type==='keep').hp=0;b.tick(.05);assert.equal(b.phase,result);const time=b.time,gold=b.gold;advance(b,30);assert.equal(b.time,time);assert.equal(b.gold,gold);assert.match(b.train('knight'),/terminata/);}
 });
 test('an undefended realm can actually be invaded and lose',()=>{
   const b=new SiegeBattle();b.phase='combat';advance(b,300);assert.equal(b.phase,'lost');assert.ok(b.wave>=1);

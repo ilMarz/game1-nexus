@@ -75,6 +75,6 @@ test('manual deployment before battle remains manual when the allied commander s
   const b=new SiegeBattle(),u=b.units.find(u=>u.team==='blue');b.command([u.id],'move',300,180);const direct=u.order;b.setAllyEnabled(true);b.applyAllyPlan(bluePlan);assert.equal(u.control,'manual');assert.equal(u.order,direct);
 });
 test('an explicit manual attack approaches the chosen building instead of stopping to attack a nearby decoy',()=>{
-  const b=new SiegeBattle();b.units=[];b.buildings=b.buildings.filter(b=>b.type==='keep');b.phase='combat';b.nextWave=10000;const u=b.spawn('archer','blue',800,300),decoy=b.spawn('pike','red',800,330),target=b.buildings.find(b=>b.team==='red');decoy.order={mode:'hold'};
+  const b=new SiegeBattle();b.units=[];b.buildings=b.buildings.filter(b=>b.type==='keep');b.phase='combat';b.nextWave=10000;const u=b.spawn('archer','blue',800,300),decoy=b.spawn('knight','red',800,330),target=b.buildings.find(b=>b.team==='red');decoy.order={mode:'hold'};
   b.command([u.id],'target',target.x,target.y,target.id);b.tick(.05);assert.equal(decoy.hp,decoy.maxHp);assert.ok(u.moved);assert.equal(u.control,'manual');assert.equal(u.order.target,target.id);
 });

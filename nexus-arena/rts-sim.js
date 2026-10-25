@@ -3,11 +3,12 @@ import {W,H,PASSAGES,CLIFFS,terrainAt,zoneAt,walkable,findPath} from './rts-terr
 import {normalizeRtsPlan,localRtsPlan,summarizeBattle,MANEUVERS} from './rts-plans.js';
 import {RESERVE_SHARE,assessFront,emergencyDefense} from './rts-balance.js';
 import {ADVISOR_ORDERS,developmentNeed,respectOrder,emergencyNeed,EMERGENCY_ACTIONS} from './rts-orders.js';
+import {enemyProfile,enemyDevelopmentChoices} from './rts-enemy.js';
 export {W,H};
 export const BRIDGES=PASSAGES.map(p=>p.y);
 export const TROOPS={
-  infantry:{name:'Spadaccino',gold:35,wood:0,hp:110,damage:15,range:23,speed:56,rate:.85,time:3,radius:9,role:'Tiene la linea · forte contro i lancieri'},
-  pike:{name:'Lanciere',gold:25,wood:15,hp:85,damage:12,range:32,speed:58,rate:1,time:3,radius:8,role:'Economico · protegge arcieri e arieti'},
+  infantry:{name:'Spadaccino',gold:35,wood:0,hp:110,damage:15,range:23,speed:56,rate:.85,time:3,radius:9,role:'Fanteria · tiene la linea e protegge gli arcieri'},
+  knight:{name:'Cavaliere',gold:60,wood:20,hp:150,damage:18,range:30,speed:88,rate:1,time:5,radius:12,role:'Cavalleria · rapida e resistente, forte contro arcieri e arieti'},
   archer:{name:'Arciere',gold:40,wood:20,hp:55,damage:12,range:142,speed:54,rate:1.35,time:4,radius:8,role:'Tiro a distanza · vulnerabile in mischia'},
   ram:{name:'Ariete',gold:100,wood:80,hp:330,damage:65,range:29,speed:31,rate:2.4,time:8,radius:15,role:'Danno ×3 agli edifici · scortalo'}
 };
@@ -33,7 +34,7 @@ export class SiegeBattle{
     for(const [team,x] of [['blue',155],['red',1045]]){
       this.addBuilding('keep',team,x,380);this.addBuilding('barracks',team,team==='blue'?230:970,245);this.addBuilding('farm',team,team==='blue'?170:1030,540);
       this.addBuilding('tower',team,team==='blue'?350:850,380);
-      ['infantry','infantry','infantry','pike','pike','archer','archer','archer'].forEach((type,i)=>this.spawn(type,team,team==='blue'?270+(i%3)*26:930-(i%3)*26,320+Math.floor(i/3)*43));
+      ['infantry','infantry','infantry','knight','knight','archer','archer','archer'].forEach((type,i)=>this.spawn(type,team,team==='blue'?270+(i%3)*26:930-(i%3)*26,320+Math.floor(i/3)*43));
     }
     this.message('Schiera le truppe, poi avvia la battaglia.');
   }
@@ -73,7 +74,7 @@ export class SiegeBattle{
     this.takeControl(ids,false);
     if(troops.length)this.audioEvent('order',x,y);
     const cols=Math.ceil(Math.sqrt(troops.length)),facing=x>(troops.reduce((sum,u)=>sum+u.x,0)/troops.length||600)?1:-1;
-    troops.sort((a,b)=>({pike:0,infantry:1,ram:2,archer:3}[a.type]-{pike:0,infantry:1,ram:2,archer:3}[b.type]));
+    troops.sort((a,b)=>({knight:0,infantry:1,ram:2,archer:3}[a.type]-{knight:0,infantry:1,ram:2,archer:3}[b.type]));
     troops.forEach((u,i)=>{u.order={mode,x:clamp(x-Math.floor(i/cols)*25*facing,30,W-30),y:clamp(y+(i%cols-(cols-1)/2)*25,45,H-35),target};u.route=null;u.path=[];u.pathTimer=0;});
   }
   takeControl(ids,hold=true){
@@ -110,10 +111,26 @@ export class SiegeBattle{
     if(this.emergencyDefense.active&&!wasEmergency)this.audioEvent('alert',155,380);
     const emergency=team==='blue'&&this.emergencyDefense.active;
     const red=team==='red',pending=red?'enemyDevelopmentPending':'developmentPending',at=red?'enemyDevelopmentAt':'developmentAt',status=red?'enemyDevelopmentStatus':'developmentStatus',queue=red?this.enemyQueue:this.queue,plan=red?this.enemyPlan:this.allyPlan,gold=red?this.enemyGold:this.gold,wood=red?this.enemyWood:this.wood;
-    if(this.phase!=='combat'||!red&&(!this.allyEnabled||this.advisorOrder!=='develop'&&!emergency)||!this[pending]&&!emergency||this.time<this[at])return;
+    if(this.phase!=='combat'||red&&!plan||!red&&(!this.allyEnabled||this.advisorOrder!=='develop'&&!emergency)||!red&&!this[pending]&&!emergency||this.time<this[at])return;
     if(emergency&&this.time<this.emergencyProductionAt)return;
     this[at]=this.time+2;
     let action=plan?.development;
+    if(red){
+      const snapshot=summarizeBattle(this,'red');
+      this[at]=this.time+enemyProfile(snapshot).productionInterval;
+      const choices=enemyDevelopmentChoices(snapshot,plan);
+      // A fresh model action has priority; continuous local logistics fills gaps.
+      const candidates=this[pending]&&action&&action!=='wait'?[action,...choices]:choices;
+      action=candidates.find(a=>{
+        const [kind,type]=a.split('_'),d=kind==='train'?TROOPS[type]:BUILDINGS[type];
+        if(!d||gold<d.gold||wood<d.wood)return false;
+        if(kind==='train')return queue.length<2&&this.units.filter(u=>u.team===team&&u.hp>0).length+queue.length<this.capFor(team)&&this.buildings.some(b=>b.team===team&&b.type==='barracks'&&b.hp>0&&!b.remaining);
+        const own=this.buildings.filter(b=>b.team===team&&b.type===type&&b.hp>0);
+        return own.length<({barracks:1,house:3,farm:3,tower:4}[type]||0)&&!own.some(b=>b.remaining);
+      })||'wait';
+      // Explicit wait applies to this review, not to all subsequent production.
+      if(this[pending]&&plan.development==='wait')action='wait';
+    }
     if(emergency&&(!this[pending]||!EMERGENCY_ACTIONS.includes(action)))action=emergencyNeed(summarizeBattle(this,'blue'));
     if(emergency&&action==='build_house'&&this.population+this.queue.length<this.cap)action=emergencyNeed(summarizeBattle(this,'blue'));
     if(!action)return;
@@ -232,13 +249,20 @@ export class SiegeBattle{
   invade(){
     this.nextWave=this.time+5;
     if(!this.externalCommander||!this.enemyPlan)this.applyEnemyPlan(localRtsPlan(summarizeBattle(this,'red')));
+    else{
+      const front=assessFront(this.units,this.buildings,'red'),state=this.tactics.red,plan=this.enemyPlan;
+      const captured=plan.objective==='crossing'&&this.sites.find(s=>s.id===plan.passage)?.owner==='red';
+      const staleDefense=plan.maneuver==='defend'&&!front.emergency&&this.time>=(state.dangerUntil||0);
+      const stalled=!state.launched&&this.time>=(state.commitUntil||0);
+      if(captured||staleDefense||stalled||front.emergency&&plan.maneuver!=='defend')this.applyEnemyPlan(localRtsPlan(summarizeBattle(this,'red')));
+    }
   }
   damage(attacker,target){
     const d=attacker.kind==='unit'?TROOPS[attacker.type]:BUILDINGS[attacker.type];let amount=d.damage;
     if(attacker.type==='ram')amount*=target.kind==='building'?3:.2;
-    if(attacker.type==='infantry'&&target.type==='pike')amount*=1.65;
-    if(attacker.type==='archer'&&target.type==='pike')amount*=1.35;
-    if(attacker.type==='pike'&&target.type==='ram')amount*=2;
+    if(attacker.type==='knight'&&target.type==='archer')amount*=1.5;
+    if(attacker.type==='archer'&&target.type==='knight')amount*=.8;
+    if(attacker.type==='knight'&&target.type==='ram')amount*=2;
     if(target.type==='ram'&&attacker.type==='archer')amount*=.3;
     const sourceTerrain=terrainAt(attacker.x,attacker.y),targetTerrain=terrainAt(target.x,target.y);
     if(d.range>80){if(target.kind==='unit')amount*=targetTerrain.cover;if(sourceTerrain.elevation>targetTerrain.elevation)amount*=1.15;else if(sourceTerrain.elevation<targetTerrain.elevation)amount*=.85;}

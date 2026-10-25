@@ -1,25 +1,37 @@
 // Original procedural effects: no downloads, tracking, or external audio service.
 export const SOUND_TYPES=['clash','arrow','ram','collapse','fall','ready','build','capture','alert','order','start','win','lose'];
-const lengths={clash:.23,arrow:.3,ram:.48,collapse:.85,fall:.22,ready:.55,build:.28,capture:.75,alert:.85,order:.09,start:.7,win:1.15,lose:.9};
+const lengths={clash:.38,arrow:.34,ram:.72,collapse:1.35,fall:.32,ready:.62,build:.4,capture:1.05,alert:1.1,order:.14,start:1.2,win:1.8,lose:1.6};
 const tau=Math.PI*2,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export function synthesizeEffect(type,seed=1,rate=22050){
   if(!SOUND_TYPES.includes(type))throw new Error('Unknown effect');
-  const samples=new Float32Array(Math.ceil(lengths[type]*rate));let state=seed>>>0,low=0,last=0;
-  const note=(t,start,f,decay,level=.3)=>t<start?0:Math.sin(tau*f*(t-start))*Math.exp(-(t-start)*decay)*Math.min(1,(t-start)*250)*level;
+  const samples=new Float32Array(Math.ceil(lengths[type]*rate));let state=seed>>>0,low=0,body=0;
+  const tuning=1+(seed%7-3)*.012;
+  // Damped, inharmonic modes give struck metal/wood a material identity.
+  const strike=(t,start,f,decay,level=.3,metal=false)=>{
+    const age=t-start;if(age<0)return 0;
+    return [1,metal?2.756:1.58,metal?5.404:2.13].reduce((v,ratio,i)=>v+Math.sin(tau*f*tuning*ratio*age)*Math.exp(-age*decay*(1+i*.65))/(1+i*2),0)*Math.min(1,age*900)*level;
+  };
+  const horn=(t,start,f,duration,level=.22)=>{
+    const age=t-start;if(age<0||age>duration)return 0;
+    const envelope=Math.min(1,age/.07,(duration-age)/.16),phase=tau*f*tuning*(age+.00065*Math.sin(tau*4.7*age));
+    return (Math.sin(phase)+.3*Math.sin(phase*2)+.16*Math.sin(phase*3)+.07*Math.sin(phase*5))*envelope*level;
+  };
   for(let i=0;i<samples.length;i++){
-    const t=i/rate;state=(Math.imul(state,1664525)+1013904223)>>>0;const noise=state/2147483648-1;low+=.09*(noise-low);const high=noise-last;last=noise;let value=0;
-    if(type==='clash')value=(high*.18+Math.sin(tau*(1320+seed%70)*t)*.24+Math.sin(tau*2173*t)*.16+Math.sin(tau*3531*t)*.07)*Math.exp(-t*27);
-    if(type==='arrow')value=(Math.sin(tau*238*t)*.3+Math.sin(tau*476*t)*.1)*Math.exp(-t*32)+high*.1*Math.exp(-t*55)+(t>.11?(low*.65+Math.sin(tau*380*(t-.11))*.16)*Math.exp(-(t-.11)*32):0);
-    if(type==='ram')value=Math.sin(tau*(76*t-30*t*t))*.55*Math.exp(-t*10)+low*.8*Math.exp(-t*14)+Math.sin(tau*183*t)*.2*Math.exp(-t*23);
-    if(type==='collapse')for(const start of [0,.07,.17,.29,.43])if(t>=start)value+=(low*.65+Math.sin(tau*(90+start*170)*(t-start))*.17)*Math.exp(-(t-start)*12);
-    if(type==='fall')value=(low*.75+Math.sin(tau*83*t)*.3)*Math.exp(-t*24);
-    if(type==='build')value=(Math.sin(tau*310*t)*.26+low*.6)*Math.exp(-t*35)+(t>.1?(Math.sin(tau*415*(t-.1))*.2+low*.4)*Math.exp(-(t-.1)*35):0);
-    if(type==='order')value=Math.sin(tau*340*t)*.18*Math.exp(-t*65)+high*.035*Math.exp(-t*100);
-    if(type==='ready')value=note(t,0,660,9,.21)+note(t,.09,880,10,.18);
-    if(type==='capture')value=note(t,0,392,9)+note(t,.12,494,9)+note(t,.24,587,9);
-    if(type==='alert'||type==='start')for(const start of [0,.29]){const f=type==='alert'?147:196;if(t>start){const age=t-start;value+=(Math.sin(tau*f*age)*.24+Math.sin(tau*f*3*age)*.07)*Math.min(1,age*35)*Math.exp(-age*10);}}
-    if(type==='win')value=note(t,0,392,8)+note(t,.14,494,8)+note(t,.28,587,7)+note(t,.46,784,6);
-    if(type==='lose')value=note(t,0,220,7)+note(t,.19,175,7)+note(t,.39,131,7);
+    const t=i/rate;state=(Math.imul(state,1664525)+1013904223)>>>0;const noise=state/2147483648-1;
+    low+=(1-Math.exp(-tau*1050/rate))*(noise-low);body+=(1-Math.exp(-tau*180/rate))*(noise-body);const high=low-body;let value=0;
+    if(type==='clash')value=strike(t,0,720,16,.28,true)+strike(t,.012,1190,24,.13,true)+high*.65*Math.exp(-t*65);
+    if(type==='arrow')value=strike(t,0,185,38,.22)+high*.7*Math.sin(Math.PI*Math.min(1,t/.18))**2*Math.exp(-t*19)+strike(t,.19,125,38,.19);
+    if(type==='ram')value=Math.sin(tau*(58*t+1.2*(1-Math.exp(-t*24))))*.52*Math.exp(-t*9)+strike(t,.008,103,12,.27)+body*1.7*Math.exp(-t*14)+high*.36*Math.exp(-t*45);
+    if(type==='collapse')for(const start of [0,.06,.15,.27,.44,.65,.89])if(t>=start){const age=t-start;value+=(body*.9+high*.23)*Math.exp(-age*8)*Math.min(1,age*350)+strike(t,start,48+start*71,10,.17);}
+    if(type==='fall')value=strike(t,0,72,22,.29)+body*.9*Math.exp(-t*20)+high*.12*Math.exp(-t*16);
+    if(type==='build')value=strike(t,0,230,32,.3)+strike(t,.15,310,30,.22)+high*.25*(Math.exp(-t*65)+(t>.15?Math.exp(-(t-.15)*65):0));
+    if(type==='order')value=strike(t,0,460,50,.18)+strike(t,.042,690,55,.08);
+    if(type==='ready')value=strike(t,0,587,7,.19,true)+strike(t,.13,880,9,.14,true);
+    if(type==='capture')value=horn(t,0,196,.43,.17)+horn(t,.35,294,.65,.18)+strike(t,0,98,16,.18);
+    if(type==='alert')value=horn(t,0,146.83,.33,.23)+horn(t,.46,146.83,.55,.23);
+    if(type==='start')value=horn(t,0,196,.38,.2)+horn(t,.4,261.63,.7,.22)+strike(t,0,65,12,.22)+strike(t,.4,65,12,.2);
+    if(type==='win')value=horn(t,0,196,.42,.18)+horn(t,.33,246.94,.42,.18)+horn(t,.66,293.66,.95,.2)+horn(t,.93,392,.7,.12);
+    if(type==='lose')value=horn(t,0,196,.5,.17)+horn(t,.43,174.61,.5,.17)+horn(t,.86,130.81,.65,.2);
     const fade=Math.min(1,t*600,(samples.length-1-i)/Math.max(1,rate*.02));samples[i]=Math.tanh(value)*.8*Math.max(0,fade);
   }
   return samples;

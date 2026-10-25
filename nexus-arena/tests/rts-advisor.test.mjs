@@ -31,5 +31,5 @@ test('paused, disabled and ended battles receive truthful status instead of ongo
   const b=active();assert.match(describeAdvisor(b,{plan},'blue',{paused:true}),/^La battaglia è in pausa/);assert.match(describeAdvisor(b,{plan},'blue',{enabled:false}),/guida è sospesa/);b.phase='won';assert.match(describeAdvisor(b,{plan},'blue'),/vinta/);assert.match(describeAdvisor(b,{plan},'red'),/nostra fortezza è caduta/);
 });
 test('a reserved queue is never narrated as automatically available troops',()=>{
-  const b=active();b.units=b.units.filter(u=>u.team!=='blue');b.train('pike',false);assert.match(describeAdvisor(b,{plan},'blue'),/Non ho truppe disponibili/);b.queue=[];b.train('archer',true);assert.match(describeAdvisor(b,{plan},'blue'),/addestramento/);
+  const b=active();b.units=b.units.filter(u=>u.team!=='blue');b.train('knight',false);assert.match(describeAdvisor(b,{plan},'blue'),/Non ho truppe disponibili/);b.queue=[];b.train('archer',true);assert.match(describeAdvisor(b,{plan},'blue'),/addestramento/);
 });

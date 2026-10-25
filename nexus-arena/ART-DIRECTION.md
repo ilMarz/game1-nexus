@@ -4,7 +4,7 @@ Phaser 4, mappa logica 1200 × 760, vista dall’alto inclinata negli edifici. T
 
 Il prato usa verde salvia, paglia e terra; il fiume turchese desaturato divide la mappa. Muratura e costoni usano calcare caldo. Il giocatore è blu ardesia, Jev rosso rame; oro tenue per obiettivi, selezione e informazioni tattiche. Le ombre cadono in basso a destra e distinguono unità, rocce, boschi ed edifici dal suolo.
 
-Sagome: spada e scudo per la fanteria, lancia alta per i lancieri, cappuccio/arco per gli arcieri, tetto e quattro ruote per gli arieti. Gli edifici hanno tetti di fazione e insegne; i ponti distinguono muratura, legno, rovine e acqua bassa. Le aree dipinte usano le stesse coordinate dei bonus e degli ostacoli della simulazione.
+Sagome: spada e scudo per la fanteria, cavallo con quattro zampe animate, cavaliere corazzato e lancia protesa per la cavalleria, cappuccio/arco per gli arcieri, tetto e quattro ruote per gli arieti. Gli edifici hanno tetti di fazione e insegne; i ponti distinguono muratura, legno, rovine e acqua bassa. Le aree dipinte usano le stesse coordinate dei bonus e degli ostacoli della simulazione.
 
 Camminata legata allo spazio percorso, orientamento graduale, oscillazione del mantello, ruote in movimento, attacco di spada, frecce con arco visivo, polvere e impatti brevi. Il feedback resta nel renderer; i bonus, gli ordini e le collisioni restano nella simulazione. Il terreno si ispeziona con cursore e tasto T; lo zoom aiuta a leggere le unità su pannelli stretti.
 

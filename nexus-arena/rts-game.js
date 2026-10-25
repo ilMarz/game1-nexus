@@ -23,7 +23,7 @@ document.addEventListener('keydown',()=>{void audio.unlock().then(audioUI);},{ca
 $('audioToggle').onclick=()=>{audio.setEnabled(!audio.enabled);if(audio.enabled)void audio.unlock().then(()=>{audio.play({type:'order'});audioUI();});audioUI();};
 $('audioVolume').oninput=()=>{audio.setVolume(Number($('audioVolume').value)/100);audioUI();};
 audioUI();
-const unitIcons={infantry:'⚔',pike:'⚑',archer:'➶',ram:'▰'};
+const unitIcons={infantry:'⚔',knight:'♞',archer:'➶',ram:'▰'};
 let journal=new AdvisorJournal();
 function renderJournal(){
   const list=$('allyLog'),messages=journal.update(battle,allyDirector,{paused}),follow=list.scrollHeight-list.scrollTop-list.clientHeight<45;
@@ -43,8 +43,8 @@ function usable(){return !paused&&!['planning','won','lost'].includes(battle.pha
 function train(type){if(!usable())return;const available=$('autoRecruits').checked,err=battle.train(type,available);notice(err||`${TROOPS[type].name} in coda · ${available?'disponibile al tuo Stratega':'riserva sotto il tuo controllo'}.`);refresh();}
 for(const [type,d] of Object.entries(TROOPS)){
   const b=document.createElement('button');b.className='recruit';b.dataset.train=type;b.title=d.role;
-  b.innerHTML=`<span class="unit-icon" aria-hidden="true">${unitIcons[type]}</span><span><b>${d.name}</b><small>${d.time} s · ${type==='ram'?'Assedio':type==='archer'?'Distanza':'Fanteria'}</small></span><span class="cost">${d.gold} oro${d.wood?`<br>${d.wood} legno`:''}</span>`;
-  const description=document.createElement('p');description.className='component-description';description.textContent={infantry:'Combatte in prima linea ed è forte contro i lancieri. Tienilo davanti agli arcieri.',pike:'Infligge danni doppi agli arieti. Protegge gli arcieri, ma soffre gli spadaccini.',archer:'Colpisce a distanza; dalle alture guadagna gittata. Vulnerabile al corpo a corpo.',ram:'Danni tripli agli edifici e resistenza alle frecce. Richiede scorta e ponti larghi.'}[type];const id=`troop-description-${type}`;description.id=id;b.setAttribute('aria-describedby',id);const card=document.createElement('div');card.className='component-card';card.append(b,description);b.onclick=()=>train(type);$('recruit').append(card);
+  b.innerHTML=`<span class="unit-icon" aria-hidden="true">${unitIcons[type]}</span><span><b>${d.name}</b><small>${d.time} s · ${type==='ram'?'Assedio':type==='archer'?'Distanza':type==='knight'?'Cavalleria':'Fanteria'}</small></span><span class="cost">${d.gold} oro${d.wood?`<br>${d.wood} legno`:''}</span>`;
+  const description=document.createElement('p');description.className='component-description';description.textContent={infantry:'Combatte in prima linea, tiene la posizione e protegge gli arcieri.',knight:'Combatte a cavallo: rapido e resistente. Forte contro arcieri e arieti, ideale per aggiramenti e rinforzi.',archer:'Colpisce a distanza; dalle alture guadagna gittata. Vulnerabile al corpo a corpo.',ram:'Danni tripli agli edifici e resistenza alle frecce. Richiede scorta e ponti larghi.'}[type];const id=`troop-description-${type}`;description.id=id;b.setAttribute('aria-describedby',id);const card=document.createElement('div');card.className='component-card';card.append(b,description);b.onclick=()=>train(type);$('recruit').append(card);
 }
 for(const type of ['barracks','tower','farm','house']){
   const d=BUILDINGS[type],b=document.createElement('button');b.dataset.build=type;b.innerHTML=`${d.name}<small>${d.gold} oro · ${d.wood} legno</small>`;
@@ -71,7 +71,7 @@ $('provider').onchange=()=>refresh();
 for(const button of document.querySelectorAll('[data-advisor-order]'))button.onclick=()=>{if(!usable())return;const order=button.dataset.advisorOrder;if(!commanders.setAdvisorOrder(battle,order))return;journal.add(battle.time,ADVISOR_ORDERS[order],'player');if(!$('allyEnabled').checked){$('allyEnabled').checked=true;commanders.setAllyEnabled(battle,true);}refresh();};
 function toggleTerrain(){terrainVisible=!terrainVisible;$('terrainToggle').setAttribute('aria-pressed',String(terrainVisible));for(const label of scene?.terrainLabels||[])label.setVisible(terrainVisible);}
 $('terrainToggle').onclick=toggleTerrain;
-for(const p of PASSAGES){const button=document.createElement('button');button.dataset.passage=p.id;button.title=p.weakness;button.innerHTML=`<span>${p.kind==='ford'?'≈':p.kind==='ruins'?'⋮':'⌒'} ${p.name}</span><small>${p.siege?'Fanteria + arieti':'Solo fanteria'}</small>`;button.onclick=()=>{if(!p.siege&&[...selected].some(id=>battle.entity(id)?.type==='ram')){notice('Guadi e rovine non reggono gli arieti. Seleziona solo la fanteria oppure usa uno dei ponti.');return;}order('attack',600,p.y);};$('passages').append(button);}
+for(const p of PASSAGES){const button=document.createElement('button');button.dataset.passage=p.id;button.title=p.weakness;button.innerHTML=`<span>${p.kind==='ford'?'≈':p.kind==='ruins'?'⋮':'⌒'} ${p.name}</span><small>${p.siege?'Tutte le truppe':'Fanteria + cavalleria'}</small>`;button.onclick=()=>{if(!p.siege&&[...selected].some(id=>battle.entity(id)?.type==='ram')){notice('Guadi e rovine non reggono gli arieti. Seleziona fanteria e cavalleria oppure usa uno dei ponti.');return;}order('attack',600,p.y);};$('passages').append(button);}
 $('pause').onclick=togglePause;$('restart').onclick=restart;
 $('repair').onclick=()=>{if(!usable())return;notice(battle.repair()||'Fortezza riparata: +260 integrità.');refresh();};
 $('overlayAction').onclick=()=>{if(['won','lost'].includes(battle.phase))restart();else togglePause();};
@@ -191,12 +191,45 @@ class Valley extends Phaser.Scene{
   bar(g,x,y,w,ratio,team){g.fillStyle(0x213425,.9).fillRect(x-w/2-1,y-1,w+2,5);g.fillStyle(team==='blue'?0x8cc5b8:0xe89976).fillRect(x-w/2,y,Math.max(0,w*ratio),3);}
   soldier(u,g){
     const moving=Math.hypot(u.vx,u.vy)>3,swing=moving?Math.sin(u.stride+u.id)*3.5:0,x=u.x,y=u.y-(moving?Math.abs(Math.sin(u.stride+u.id))*1.2:0),c=ink[u.team],light=ink[u.team+'Light'];
-    g.fillStyle(0x243b28,.3).fillEllipse(x+2,y+4,u.type==='ram'?35:20,9);
+    g.fillStyle(0x243b28,.3).fillEllipse(x+2,y+4,u.type==='ram'?35:u.type==='knight'?37:20,9);
     if(u.team==='blue'){g.fillStyle(u.control==='manual'?0xf0c57a:0x9dcddd,.9).fillCircle(x+13,y+5,2.5);}
     if(moving){g.fillStyle(0xd4c193,.17).fillCircle(x-Math.cos(u.heading)*12,y+5-Math.sin(u.heading)*5,3+Math.abs(swing)*.4);}
-    if(selected.has(u.id)){g.lineStyle(1.5,0xe6dc9b,.95).strokeEllipse(x,y+3,u.type==='ram'?40:27,u.type==='ram'?26:15);}
+    if(selected.has(u.id)){g.lineStyle(1.5,0xe6dc9b,.95).strokeEllipse(x,y+3,u.type==='ram'?40:u.type==='knight'?42:27,u.type==='ram'?26:u.type==='knight'?22:15);}
     if(u.type==='ram'){
       g.fillStyle(0x594b32).fillRoundedRect(x-16,y-11,32,23,3);g.fillStyle(0xbaa373).fillTriangle(x-19,y-8,x,y-23,x+19,y-8);g.fillStyle(0x90764d).fillTriangle(x-19,y-8,x,y-23,x,y-8);g.lineStyle(2,0x635738).lineBetween(x,y-22,x,y-8);g.fillStyle(c).fillRect(x-14,y-8,28,5);for(const dx of [-14,11])for(const dy of [-3,10]){g.fillStyle(0x363e2d).fillCircle(x+dx,y+dy,5);g.lineStyle(1,0xa28a57).lineBetween(x+dx-Math.cos(u.stride)*4,y+dy-Math.sin(u.stride)*4,x+dx+Math.cos(u.stride)*4,y+dy+Math.sin(u.stride)*4);}g.fillStyle(0xc1b895).fillRect(x-3,y+3,6,18);g.fillStyle(0x6a6550).fillCircle(x,y+21,4);
+    }else if(u.type==='knight'){
+      const facing=Math.cos(u.heading)<0?-1:1,attack=(u.attackFlash||0)/.22;
+      const coat=u.id%2?0x806044:0x9c7953,dark=0x463d30;
+      // Four alternating legs, barrel, neck, muzzle and ears read as a horse at game scale.
+      for(let leg=0;leg<4;leg++){
+        const dx=(leg<2?-11:10)+(leg%2)*4,step=moving?Math.sin(u.stride*1.35+leg*Math.PI/2)*5:0;
+        g.lineStyle(3,leg%2?coat:dark).lineBetween(x+dx,y-5,x+dx+step,y+8);
+        g.lineStyle(3,dark).lineBetween(x+dx+step,y+8,x+dx+step+facing*3,y+9);
+      }
+      g.lineStyle(3,dark).lineBetween(x-facing*16,y-11,x-facing*24,y-3+swing);
+      g.fillStyle(coat).fillEllipse(x,y-10,35,18);
+      g.fillStyle(coat).fillTriangle(x+facing*9,y-12,x+facing*15,y-31,x+facing*23,y-17);
+      g.fillStyle(coat).fillEllipse(x+facing*21,y-24,16,9);
+      g.fillStyle(dark).fillTriangle(x+facing*15,y-26,x+facing*14,y-35,x+facing*19,y-28);
+      g.lineStyle(3,dark).lineBetween(x+facing*12,y-27,x+facing*8,y-14);
+      g.fillStyle(0x201f19).fillCircle(x+facing*23,y-26,1.4);
+      g.lineStyle(1,0xd6bd86).lineBetween(x+facing*26,y-24,x+facing*8,y-19);
+      g.fillStyle(c).fillRoundedRect(x-12,y-16,23,13,3);
+      g.lineStyle(1,0xd7c393).lineBetween(x-11,y-5,x+10,y-5);
+      // Armored rider sits above the saddle, carrying a shield and couched lance.
+      g.fillStyle(dark).fillRoundedRect(x-6,y-22,12,5,2);
+      g.fillStyle(c).fillTriangle(x-5,y-31,x-facing*17,y-17+swing*.4,x+4,y-18);
+      g.fillStyle(0xb6bdb1).fillRoundedRect(x-5,y-32,11,15,3);
+      g.fillStyle(light).fillRect(x-3,y-29,6,8);
+      g.lineStyle(3,0x52564c).lineBetween(x+2,y-18,x+5,y-8);
+      g.fillStyle(0xc5cbbe).fillRoundedRect(x-5,y-43,11,11,3);
+      g.lineStyle(2,0x353c35).lineBetween(x+facing,y-38,x+facing*5,y-38);
+      g.fillStyle(c).fillTriangle(x-3,y-43,x-facing*10,y-49,x+3,y-44);
+      g.fillStyle(c).fillRoundedRect(x-facing*7-4,y-29,9,12,3);
+      g.lineStyle(1,0xe0cf9c).strokeRoundedRect(x-facing*7-4,y-29,9,12,3);
+      const tip=x+facing*(37+attack*9);
+      g.lineStyle(2,0x9b8053).lineBetween(x-facing*3,y-23,tip,y-24+attack*7);
+      g.fillStyle(0xe0e1d1).fillTriangle(tip,y-27+attack*7,tip+facing*7,y-24+attack*7,tip,y-21+attack*7);
     }else{
       // Each soldier has a head, tunic, two walking legs, arms and a distinct weapon.
       const facing=Math.cos(u.heading)<0?-1:1,attack=(u.attackFlash||0)/.22;
@@ -210,10 +243,9 @@ class Valley extends Phaser.Scene{
       g.fillStyle(0xd6bb8e).fillCircle(x,y-20,5);g.fillStyle(u.type==='archer'?0x506345:0xaab1a1).fillEllipse(x,y-23,12,7);
       g.fillStyle(0x3d3c2e).fillRect(x+facing,y-20,2,1);g.fillStyle(0xd2d4bf,.7).fillRect(x-4,y-25,6,2);
       if(u.type==='infantry'){g.fillStyle(c).fillRoundedRect(x-facing*9-4,y-10,8,11,2);g.lineStyle(1,0xe0cf9c).strokeRoundedRect(x-facing*9-4,y-10,8,11,2);g.lineStyle(2,0xe0dfc4).lineBetween(x+facing*10,y-4,x+facing*(13+attack*10),y-21+attack*20);g.lineStyle(2,0xb2a276).lineBetween(x+facing*7,y-9,x+facing*15,y-8);}
-      if(u.type==='pike'){g.lineStyle(2,0x806a47).lineBetween(x+10,y+5,x+13,y-31);g.fillStyle(0xdddcc0).fillTriangle(x+10,y-30,x+13,y-39,x+16,y-30);g.fillStyle(0xabb59c).fillCircle(x-9,y-7,5);}
       if(u.type==='archer'){g.lineStyle(2,0xd2bb7d);g.beginPath();g.arc(x+7,y-10,10,-1.1,1.1);g.strokePath();g.lineStyle(1,0xf0ddac).lineBetween(x+11,y-19,x+11,y-1);g.fillStyle(0x655d3f).fillRect(x-9,y-20,4,14);}
     }
-    if(selected.has(u.id)||u.hp<u.maxHp)this.bar(g,x,y-(u.type==='ram'?29:44),u.type==='ram'?32:22,u.hp/u.maxHp,u.team);
+    if(selected.has(u.id)||u.hp<u.maxHp)this.bar(g,x,y-(u.type==='ram'?29:u.type==='knight'?55:44),u.type==='ram'?32:u.type==='knight'?30:22,u.hp/u.maxHp,u.team);
   }
   update(t,delta){
     commanders.tick(battle,paused);

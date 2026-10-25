@@ -21,14 +21,14 @@ test('an enemy assault damages a player building through real movement and comba
 });
 test('enemy development uses its own resources, normal queues and construction time',()=>{
   const b=battle(),gold=b.gold,wood=b.wood;b.applyEnemyPlan({...plan,development:'build_farm'});b.tick(.05);const farm=b.buildings.at(-1);assert.equal(farm.team,'red');assert.ok(farm.x>=715);assert.equal(b.enemyGold,320-BUILDINGS.farm.gold);assert.ok(farm.remaining>0);assert.equal(b.gold,gold);assert.equal(b.wood,wood);advance(b,8.1);assert.equal(farm.remaining,0);
-  b.applyEnemyPlan({...plan,development:'train_pike'});b.tick(.05);assert.equal(b.enemyQueue[0].type,'pike');const population=b.units.filter(u=>u.team==='red').length;advance(b,3.1);assert.equal(b.units.filter(u=>u.team==='red').length,population+1);
+  const c=battle();c.applyEnemyPlan({...plan,development:'train_knight'});c.tick(.05);assert.equal(c.enemyQueue[0].type,'knight');assert.equal(c.enemyGold,320-TROOPS.knight.gold);const population=c.units.filter(u=>u.team==='red').length;advance(c,TROOPS.knight.time+.1);assert.equal(c.units.filter(u=>u.team==='red').length,population+1);
 });
 test('enemy housing and capacity follow the same rules as the player',()=>{
-  const b=battle();while(b.units.filter(u=>u.team==='red').length<30)b.spawn('infantry','red',1000,100);assert.match(b.train('pike',true,'red'),/completo/);b.applyEnemyPlan({...plan,development:'build_house'});b.tick(.05);assert.equal(b.capFor('red'),30);advance(b,7.1);assert.equal(b.capFor('red'),40);assert.equal(b.train('pike',true,'red'),null);assert.equal(b.enemyQueue[0].remaining,TROOPS.pike.time);
+  const b=battle();while(b.units.filter(u=>u.team==='red').length<30)b.spawn('infantry','red',1000,100);assert.match(b.train('knight',true,'red'),/completo/);b.applyEnemyPlan({...plan,development:'build_house'});b.tick(.05);assert.equal(b.capFor('red'),30);advance(b,7.1);assert.equal(b.capFor('red'),40);assert.equal(b.train('knight',true,'red'),null);assert.equal(b.enemyQueue[0].remaining,TROOPS.knight.time);
 });
 test('development-only replans preserve movement paths and actual ongoing unit orders',()=>{
   const b=battle();b.applyEnemyPlan(plan);const u=b.units.find(u=>u.team==='red');const order=u.order;u.path=[{x:900,y:400}];b.applyEnemyPlan({...plan,development:'train_archer'});assert.equal(u.order,order);assert.equal(u.path.length,1);
 });
 test('enemy telemetry contains its own funds and queue, and Jev chooses a paid development action',()=>{
-  const b=battle();b.enemyGold=100;b.enemyWood=50;b.train('pike',true,'red');const snapshot=summarizeBattle(b,'red');assert.equal(snapshot.gold,75);assert.equal(snapshot.wood,35);assert.equal(snapshot.queue[0].type,'pike');assert.equal(b.gold,320);const request=buildWarlordRequest(snapshot);assert.ok(request.questions.development);assert.equal(request.state.nextReinforcements,null);assert.ok(localRtsPlan(snapshot).development);
+  const b=battle();b.enemyGold=100;b.enemyWood=50;b.train('knight',true,'red');const snapshot=summarizeBattle(b,'red');assert.equal(snapshot.gold,100-TROOPS.knight.gold);assert.equal(snapshot.wood,50-TROOPS.knight.wood);assert.equal(snapshot.queue[0].type,'knight');assert.equal(b.gold,320);const request=buildWarlordRequest(snapshot);assert.ok(request.questions.development);assert.equal(request.state.nextReinforcements,null);assert.ok(localRtsPlan(snapshot).development);
 });

@@ -33,7 +33,7 @@ test('terrain slows movement and acceleration avoids instant full speed',()=>{
 });
 test('new Jev orders preserve existing unit identity, health and position',()=>{
   const b=new SiegeBattle(),red=b.units.filter(u=>u.team==='red');red[0].hp=43;const previous=red.map(u=>({id:u.id,type:u.type,hp:u.hp,x:u.x,y:u.y}));
-  const plan={passage:'north_ford',composition:'pikes',objective:'barracks',maneuver:'flank'};assert.ok(b.applyEnemyPlan(plan));
+  const plan={passage:'north_ford',composition:'cavalry',objective:'barracks',maneuver:'flank'};assert.ok(b.applyEnemyPlan(plan));
   for(let i=0;i<red.length;i++){assert.deepEqual(Object.fromEntries(Object.keys(previous[i]).map(k=>[k,red[i][k]])),previous[i]);assert.ok(['defense','rally'].includes(red[i].duty));if(red[i].duty==='rally')assert.equal(red[i].route,'north_ford');}
   const ram=b.spawn('ram','red',900,600);b.enemyOrder(ram);assert.equal(ram.route,'south_bridge');
 });
