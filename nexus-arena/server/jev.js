@@ -7,11 +7,10 @@ const messages={
   barrage:'Batterie di fuoco attive. Trova un varco, se ci riesci.',
   relief:'Rinforzi in attesa. Ti concedo un altro respiro.'
 };
-export function hasKey(value){return typeof value==='string'&&value.trim()!==''&&!['your_typesafe_key_here','hf_your_token_here'].includes(value.trim());}
+export function hasKey(value){return typeof value==='string'&&value.trim()!==''&&value.trim()!=='your_typesafe_key_here';}
 export function selectProvider(preferred,env=process.env){
   const choice=preferred??env.AI_PROVIDER??'auto';
-  if(choice==='auto')return hasKey(env.TYPESAFE_API_KEY)?'typesafe':'huggingface';
-  return ['typesafe','huggingface'].includes(choice)?choice:null;
+  return ['auto','typesafe'].includes(choice)?'typesafe':null;
 }
 export function buildJevRequest(snapshot,model=process.env.TYPESAFE_MODEL||'jev-1.14.0'){
   return {

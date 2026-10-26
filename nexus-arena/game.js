@@ -20,7 +20,7 @@ const tactical=new TacticalDisplay($('tactical'));
 const W=1440,H=900;
 let play, soundOn=false, runId=0, aiRequest=null, aiRevision=0;
 let selectedProvider='auto';
-try{const saved=localStorage.getItem('nexus-ai-provider');if(['off','auto','typesafe','huggingface'].includes(saved))selectedProvider=saved;}catch{}
+try{const saved=localStorage.getItem('nexus-ai-provider');if(['off','auto','typesafe'].includes(saved))selectedProvider=saved;}catch{}
 $('aiProvider').value=selectedProvider;
 let best=0; try { best=Number(localStorage.getItem('nexus-best')||0); } catch {}
 const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -290,19 +290,19 @@ async function requestDirector(trigger='richiesta manuale'){
     const result=await fetch('/api/director',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:selectedProvider,...sentSnapshot}),signal:request.signal});
     const data=await result.json();
     if(!play.running||play.serial!==serial||revision!==aiRevision)return;
-    if(['huggingface','typesafe'].includes(data.source)&&['assault','flank','barrage','relief'].includes(data.tactic)){
-      const source=data.source==='typesafe'?'JEV':'QWEN';
+    if(data.source==='typesafe'&&['assault','flank','barrage','relief'].includes(data.tactic)){
+      const source='JEV';
       const resolved=resolveTactic(data.tactic,play.snapshot(),play.elapsed,play.recoveryUntil),protectedRecovery=resolved.protectedRecovery;
       play.setTactic(resolved.tactic,protectedRecovery?source+' · RECUPERO PROTETTO':source);tactical.response(source,data.latencyMs,protectedRecovery?data.tactic:null);
-      $('aiState').textContent=data.source==='typesafe'?'JEV ATTIVO':'HUGGING FACE ATTIVO';
-      $('aiState').title=`${data.source==='typesafe'?'Jev':'Qwen'} · ${data.latencyMs??'?'} ms`+(Number.isFinite(data.confidence)?` · confidenza ${Math.round(data.confidence*100)}%`:'');
+      $('aiState').textContent='JEV ATTIVO';
+      $('aiState').title=`Jev · ${data.latencyMs??'?'} ms`+(Number.isFinite(data.confidence)?` · confidenza ${Math.round(data.confidence*100)}%`:'');
       $('director').textContent=protectedRecovery?'RECUPERO PROTETTO · PRESSIONE RIDOTTA':'NEXUS: '+data.message;
     } else {
       $('aiState').title='Nessuna decisione API valida: la tattica è gestita dalle regole locali.';
       const provider=data.provider==='typesafe'?'TYPESAFE':'HF';
       const labels={missing_token:provider+'_KEY DA CONFIGURARE',insufficient_credits:provider+' · CREDITO ESAURITO',invalid_token:provider+' · CHIAVE NON VALIDA',rate_limited:'AI · LIMITE RICHIESTE'};
       $('aiState').textContent=labels[data.reason]||'DIRETTORE LOCALE · API NON DISPONIBILE';
-      if(data.reason==='missing_token')$('aiState').textContent=data.provider==='typesafe'?'TYPESAFE_API_KEY DA CONFIGURARE':'HF_TOKEN DA CONFIGURARE';
+      if(data.reason==='missing_token')$('aiState').textContent='TYPESAFE_API_KEY DA CONFIGURARE';
       play.setTactic(play.elapsed<play.recoveryUntil?'relief':localTactic(play.snapshot()),'REGOLE LOCALI');tactical.failure();
     }
   }catch{if(play?.running&&play.serial===serial&&revision===aiRevision){$('aiState').textContent='DIRETTORE LOCALE · API NON DISPONIBILE';$('aiState').title='Richiesta non riuscita: nessuna nuova decisione AI applicata.';play.setTactic(play.elapsed<play.recoveryUntil?'relief':localTactic(play.snapshot()),'REGOLE LOCALI');tactical.failure();}}

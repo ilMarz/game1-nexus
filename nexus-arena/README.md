@@ -125,7 +125,7 @@ Verifica: `npm test` e `npm run build`. I test RTS controllano attraversamento d
 
 # NEXUS — Comando Orbitale (modalità precedente)
 
-Gioco strategico browser con **Phaser 4.2.1**, asset originali **Kenney Space Shooter Redux** e comandante nemico **Jev / TypeSafe** oppure **Qwen / Hugging Face**, tramite API server. Nessun modello ML locale.
+Gioco strategico browser con **Phaser 4.2.1**, asset originali **Kenney Space Shooter Redux** e comandante nemico **Jev / TypeSafe**, tramite API server. Nessun modello ML locale.
 
 ## Avvio e pagine
 
@@ -176,7 +176,7 @@ La barriera L1 ha 180 integrità. Durante un potenziamento conserva l’integrit
 
 ## Il comandante AI
 
-Una richiesta iniziale e fino a **due rivalutazioni durante l’ondata**, a 12 e 30 secondi di simulazione (massimo 18 richieste per missione). Se l’ondata termina prima, la rivalutazione non avviene. Jev risponde a tre domande Choice: **settore d’ingresso**, **composizione** (mista, sciame, corazze, bombardieri, razziatori), **obiettivo** (nucleo, reattori, strutture raggruppate, estrattori, barriere). Qwen restituisce gli stessi tre campi in JSON. Sono accettate soltanto scelte implementate.
+Una richiesta iniziale e fino a **due rivalutazioni durante l’ondata**, a 12 e 30 secondi di simulazione (massimo 18 richieste per missione). Se l’ondata termina prima, la rivalutazione non avviene. Jev risponde a tre domande Choice: **settore d’ingresso**, **composizione** (mista, sciame, corazze, bombardieri, razziatori), **obiettivo** (nucleo, reattori, strutture raggruppate, estrattori, barriere). Sono accettate soltanto scelte implementate.
 
 Il contesto include strutture, livelli, integrità, alimentazione, copertura stimata dei quattro settori, concentrazione delle strutture e piano/esito dell’ondata precedente, barriere attive/in costruzione, risorse e tecnologie. Durante la rivalutazione include anche tempo, abbattimenti, passaggi, danni, strutture perse, contatti attivi, piano corrente e budget delle riserve. I laser favoriscono contromosse corazzate, i missili possono essere saturati dagli sciami, i gruppi sono vulnerabili al bombardamento e i reattori ai razziatori. Le unità agiscono davvero su questi obiettivi e passano al nucleo quando non rimangono bersagli adatti.
 
@@ -190,13 +190,11 @@ Il pannello Intelligence mostra risposta reale, latenza, confidenza Jev e piano 
 
 ## Chiavi e Vercel
 
-Le chiavi esistenti continuano a funzionare. Nel file `.env`, escluso da Git:
+Si usa esclusivamente la chiave Jev / TypeSafe. Nel file `.env`, escluso da Git:
 
 ```env
 TYPESAFE_API_KEY=la_propria_chiave
 TYPESAFE_MODEL=jev-1.14.0
-HF_TOKEN=il_proprio_token
-HF_MODEL=Qwen/Qwen3-8B
 ```
 
 Non usare il prefisso `VITE_`. Le credenziali restano sul server. Il nuovo endpoint è `/api/commander`; quello arcade resta `/api/director`.
@@ -215,3 +213,7 @@ I test comprendono economia, rete energetica, contromosse, budget delle flotte, 
 ## Asset e licenze
 
 Sprite e suoni originali **Kenney Vleugels, Space Shooter Redux**, CC0. Fonte: https://opengameart.org/content/space-shooter-redux. Licenza: `public/assets/LICENSE-KENNEY.txt`. Sfondo Orione: NASA, ESA, Hubble Space Telescope Orion Treasury Project Team, Massimo Robberto (STScI, ESA); fonte https://science.nasa.gov/asset/hubble/orion-nebula-3/. Crediti in `public/assets/CREDITS.txt`. Phaser: MIT.
+
+## Blocco temporaneo del gioco
+
+`ENABLE_LIMIT` è disattivata per default, anche se assente. Impostando `ENABLE_LIMIT=true` oppure `ENABLE_LIMIT=ON`, tutte le pagine mostrano soltanto “Limite JEV raggiunto” e le API rispondono con HTTP 503 senza contattare Jev. `ENABLE_LIMIT=false` ripristina il gioco. In locale il server rilegge `.env`; ricaricare la pagina dopo la modifica. Su Vercel impostare la variabile e fare un redeploy: la schermata viene applicata durante la build.

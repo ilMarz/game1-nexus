@@ -7,7 +7,7 @@ let battle=new OrbitBattle(),selected=0,scene,paused=false,audio=false,request=n
 const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const icons={laser:'Parts/gun00.png',missile:'Parts/gun10.png',shield:'Power-ups/powerupBlue_shield.png',reactor:'Power-ups/powerupGreen_bolt.png',extractor:'Parts/cockpitGreen_0.png'};
 const colors={balanced:0xffb874,swarm:0xc1a0ff,armor:0xffb874,siege:0xff6b87,raiders:0xb7fa74};
-try{const saved=localStorage.getItem('nexus-orbit-provider');if(['typesafe','huggingface','off'].includes(saved))$('provider').value=saved;}catch{}
+try{const saved=localStorage.getItem('nexus-orbit-provider');if(['typesafe','off'].includes(saved))$('provider').value=saved;}catch{}
 function notify(message){text('flashMessage',message);$('flashMessage').classList.add('visible');noticeUntil=performance.now()+3200;}
 function selectSlot(id){selected=id;updateUI();}
 for(const [type,m] of Object.entries(MODULES)){
@@ -63,7 +63,7 @@ function updateUI(){
   $('emp').disabled=battle.phase!=='combat'||paused||battle.empUsed;
   text('adaptSchedule',$('provider').value==='off'?'AI disattivata: nessuna analisi o chiamata API.':battle.phase==='combat'?request?'Analisi live in corso. La battaglia continua.':adaptAttempts>=2?'Rivalutazioni terminate per questa ondata.':`Prossima analisi fra ${Math.max(0,Math.ceil(nextAdaptAt-battle.time))} s · ${adaptAttempts}/2 eseguite`:'Analisi a 12 s e 30 s. Massimo 3 chiamate per ondata.');
   text('combatValue',battle.phase==='combat'?`${battle.enemies.length} contatti · ${battle.spawned}/${battle.total} arrivi`:battle.phase==='briefing'?`Ingresso: ${SECTOR_NAMES[pendingPlan.sector]}`:'16 postazioni · 4 settori');
-  const planSource={typesafe:'JEV',huggingface:'QWEN',off:'SCHEMA FISSO',fallback:'REGOLE LOCALI'}[pendingMeta?.source]||'';
+  const planSource={typesafe:'JEV',off:'SCHEMA FISSO',fallback:'REGOLE LOCALI'}[pendingMeta?.source]||'';
   text('mapGuide',battle.phase==='prep'?'Tocca una postazione per costruire o potenziare.':['combat','briefing'].includes(battle.phase)?`${planSource} · ${COMPOSITIONS[pendingPlan.composition]} · ${SECTOR_NAMES[pendingPlan.sector]} → ${OBJECTIVES[pendingPlan.objective]}`:battle.phase==='planning'?'Il comandante sta studiando lo schieramento confermato…':'');
   $('provider').disabled=!prep||paused;
   const report=battle.reports.at(-1);$('waveReport').hidden=!report;
@@ -73,7 +73,7 @@ function updateUI(){
     text('endEyebrow',battle.phase==='won'?'SEI ONDATE RESPINTE':'NUCLEO DISTRUTTO');text('endTitle',battle.phase==='won'?'La stazione resiste.':'Il segnale si spegne.');text('endText',`On­date completate: ${battle.reports.length}/6. Riprova con lo stesso scenario 716 e un altro schieramento.`);
   }
 }
-function reset(){revision++;request?.abort();request=null;paused=false;briefing=0;pendingPlan=null;pendingMeta=null;calls=0;adaptAttempts=0;nextAdaptAt=12;$('decisionLog').replaceChildren();battle=new OrbitBattle();selected=0;scene?.clearBattle();text('aiSource','COMANDANTE IN ATTESA');text('aiStatus','Il comandante studierà le difese all’avvio dell’ondata.');text('planName','In attesa di contatto');text('planTarget','Analisi iniziale + fino a 2 rivalutazioni in battaglia.');text('planEvidence','Budget identico per Jev, Qwen e schema fisso. Scenario 716 ripetibile.');updateUI();}
+function reset(){revision++;request?.abort();request=null;paused=false;briefing=0;pendingPlan=null;pendingMeta=null;calls=0;adaptAttempts=0;nextAdaptAt=12;$('decisionLog').replaceChildren();battle=new OrbitBattle();selected=0;scene?.clearBattle();text('aiSource','COMANDANTE IN ATTESA');text('aiStatus','Il comandante studierà le difese all’avvio dell’ondata.');text('planName','In attesa di contatto');text('planTarget','Analisi iniziale + fino a 2 rivalutazioni in battaglia.');text('planEvidence','Budget identico per Jev e schema fisso. Scenario 716 ripetibile.');updateUI();}
 async function launch(adapting=false){
   adapting=adapting===true;
   if(request||adapting&&battle.phase!=='combat')return;
@@ -83,14 +83,14 @@ async function launch(adapting=false){
   let data;const controller=new AbortController();request=controller;const timeout=setTimeout(()=>controller.abort(),10000);
   try{
     if(provider==='off')data={sector:'north',composition:'balanced',objective:'core',source:'off'};
-    else {const response=await fetch('/api/commander',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...snapshot,provider}),signal:controller.signal});if(!response.ok)throw Error('provider');data=await response.json();if(!normalizePlan(data)||!['typesafe','huggingface','fallback'].includes(data.source))throw Error('invalid');}
+    else {const response=await fetch('/api/commander',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...snapshot,provider}),signal:controller.signal});if(!response.ok)throw Error('provider');data=await response.json();if(!normalizePlan(data)||!['typesafe','fallback'].includes(data.source))throw Error('invalid');}
   }catch{data={...localPlan(snapshot),source:'fallback',reason:'provider_unavailable'};}
   finally{clearTimeout(timeout);if(request===controller)request=null;}
   if(current!==revision||adapting&&battle.phase!=='combat')return;
   const before=pendingPlan;pendingPlan=normalizePlan(data);pendingMeta={source:data.source};
   if(adapting){if(!battle.adapt(pendingPlan,pendingMeta))return;}else{briefing=4;battle.phase='briefing';}
-  if(['typesafe','huggingface'].includes(data.source))calls++;
-  const source={typesafe:'JEV',huggingface:'QWEN',off:'SCHEMA FISSO',fallback:'REGOLE LOCALI'}[data.source];
+  if(['typesafe'].includes(data.source))calls++;
+  const source={typesafe:'JEV',off:'SCHEMA FISSO',fallback:'REGOLE LOCALI'}[data.source];
   const changed=adapting&&['sector','composition','objective'].some(k=>before[k]!==pendingPlan[k]);
   logDecision(`${adapting?Math.floor(battle.time)+' s':'ONDATA '+snapshot.wave} · ${source} · ${adapting?(changed?'NUOVI ORDINI':'PIANO CONFERMATO'):'ATTACCO'}: ${SECTOR_NAMES[pendingPlan.sector]} / ${COMPOSITIONS[pendingPlan.composition]} → ${OBJECTIVES[pendingPlan.objective]}${adapting?' · riserve '+snapshot.live.remainingBudget:''}`);
   text('aiSource',source+(data.source==='off'?' · AI OFF':data.source==='fallback'?' · FALLBACK':' · RISPOSTA #'+calls));

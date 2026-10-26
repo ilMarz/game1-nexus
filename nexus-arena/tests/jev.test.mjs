@@ -5,11 +5,13 @@ import {buildJevRequest,parseJevDecision,selectProvider} from '../server/jev.js'
 const snapshot={elapsed:35,health:20,kills:18,cores:4,movement:120,enemies:8,x:80,y:40,vx:-220,vy:10,speed:230,consistency:90,stationaryPct:0,edgePct:60,recentDamage:36,recentKills:3,accuracy:70,threats:4,windowSeconds:8};
 const mockAnswer={model:'jev-1.14.0',answers:{tactic:{type:'choice',choice:'relief',confidence:.88,probabilities:{assault:.02,flank:.03,barrage:.05,relief:.9}}}};
 function response(){return {statusCode:200,setHeader(){},status(n){this.statusCode=n;return this},json(data){this.data=data;return this}};}
-test('auto chooses Jev only with a real TypeSafe key; explicit selection stays explicit',()=>{
-  assert.equal(selectProvider('auto',{TYPESAFE_API_KEY:'your_typesafe_key_here'}),'huggingface');
+test('auto always selects Jev; unsupported providers are rejected',()=>{
+  assert.equal(selectProvider('auto',{TYPESAFE_API_KEY:'your_typesafe_key_here'}),'typesafe');
   assert.equal(selectProvider('auto',{TYPESAFE_API_KEY:'test-secret'}),'typesafe');
-  assert.equal(selectProvider('huggingface',{TYPESAFE_API_KEY:'test-secret'}),'huggingface');
+  assert.equal(selectProvider('huggingface',{TYPESAFE_API_KEY:'test-secret'}),null);
   assert.equal(selectProvider('typesafe',{}),'typesafe');
+  assert.equal(selectProvider(undefined,{}),'typesafe');
+  assert.equal(selectProvider(undefined,{AI_PROVIDER:'auto'}),'typesafe');
   assert.equal(selectProvider('arbitrary-provider',{}),null);
 });
 test('Jev receives a bounded Choice with the four implemented game actions',()=>{
@@ -44,10 +46,10 @@ test('server caps adaptive model calls at eight per minute per address',async()=
     assert.equal(calls,8);
   }finally{globalThis.fetch=originalFetch;if(saved===undefined)delete process.env.TYPESAFE_API_KEY;else process.env.TYPESAFE_API_KEY=saved;}
 });
-test('missing TypeSafe credentials do not silently charge Hugging Face',async()=>{
+test('missing TypeSafe credentials return local fallback without a model call',async()=>{
   const saved=process.env.TYPESAFE_API_KEY,originalFetch=globalThis.fetch;delete process.env.TYPESAFE_API_KEY;let called=false;
   globalThis.fetch=async()=>{called=true;throw Error('must not call a paid provider');};
-  try{const res=response();await handler({method:'POST',headers:{},body:{...snapshot,provider:'typesafe'}},res);assert.equal(res.data.reason,'missing_token');assert.equal(res.data.provider,'typesafe');assert.equal(called,false);}
+  try{for(const provider of ['typesafe','auto']){const res=response();await handler({method:'POST',headers:{},body:{...snapshot,provider}},res);assert.equal(res.data.reason,'missing_token');assert.equal(res.data.provider,'typesafe');assert.equal(called,false);}}
   finally{globalThis.fetch=originalFetch;if(saved!==undefined)process.env.TYPESAFE_API_KEY=saved;}
 });
 test('TypeSafe billing errors leave the game on local rules without another model call',async()=>{

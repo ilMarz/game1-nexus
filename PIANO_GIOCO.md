@@ -48,9 +48,9 @@ Implementata in TypeScript, eseguita localmente e indipendente dalla rete:
 
 La simulazione usa un passo fisso; percezione e navigazione vengono distribuite tra aggiornamenti per contenere il costo CPU.
 
-### 2. NEXUS, direttore strategico con Hugging Face
+### 2. NEXUS, direttore strategico con Jev
 
-Modello candidato: **Qwen/Qwen3-8B**. La scheda ufficiale riporta capacità multilingue, role playing, modalità senza ragionamento esteso e licenza Apache 2.0. Sono caratteristiche pertinenti a questa proposta, ma qualità dell'italiano e scelte di gioco richiedono una prova dedicata. La pagina consultata mostra un provider di inferenza; disponibilità e condizioni vanno ricontrollate nella prima fase.
+Modello: **Jev di TypeSafe**, tramite API server con scelte strutturate e validate dal gioco.
 
 Il modello riceve un riepilogo compatto: fase della missione, allarme, eventi percepiti dalla stazione, risorse note, azioni consentite e memoria breve. Sceglie tra interventi già implementati:
 
@@ -58,7 +58,7 @@ Il modello riceve un riepilogo compatto: fase della missione, allarme, eventi pe
 - spostare una pattuglia verso un settore noto;
 - intensificare temporaneamente una scansione;
 - oscurare una zona per un intervallo limitato;
-- generare una breve comunicazione coerente con gli eventi.
+- selezionare una comunicazione preparata dal gioco e coerente con gli eventi.
 
 L'adattamento deriva dal contesto della partita; non richiede addestrare o modificare il modello durante il gioco.
 
@@ -88,16 +88,16 @@ Usare output strutturati quando supportati dalla combinazione modello/provider; 
 | Gameplay | Sistemi TypeScript separati | Input, collisioni semplici, missioni e combattimento |
 | AI locale | FSM + A* | Percezione, decisioni e navigazione dei nemici |
 | Backend | Node.js + API HTTP | Proxy AI, validazione e limiti di consumo |
-| Integrazione modello | @huggingface/inference | Accesso al provider selezionato |
+| Integrazione modello | API TypeSafe | Accesso a Jev dal backend |
 | Salvataggio | IndexedDB | Impostazioni, checkpoint e record locali |
 | Asset | GLB e texture ottimizzate | Ambiente modulare e animazioni |
 | Distribuzione | Hosting statico HTTPS + backend | Link pubblico giocabile |
 
 Three.js copre il rendering: collisioni, navigazione e regole di gioco sono componenti da sviluppare. Per questo MVP, il mondo resta su un piano con ostacoli semplici; un motore di fisica completo non è necessario.
 
-Flusso: gioco → riepilogo degli eventi → backend → Hugging Face → validazione della proposta → verifica nello stato corrente → evento nel gioco.
+Flusso: gioco → riepilogo degli eventi → backend → Jev → validazione della proposta → verifica nello stato corrente → evento nel gioco.
 
-Il token Hugging Face resta esclusivamente nel backend, come raccomandato dalla documentazione ufficiale. Limiti per sessione, controllo globale del consumo e protezione dalle richieste ripetute servono anche se un client viene modificato. Il limite per partita nel browser da solo non protegge la spesa. Al superamento del budget globale, il backend sospende le chiamate e il gioco usa il direttore locale.
+La chiave TYPESAFE_API_KEY resta esclusivamente nel backend. Limiti per sessione, controllo globale del consumo e protezione dalle richieste ripetute servono anche se un client viene modificato. Il limite per partita nel browser da solo non protegge la spesa. Al superamento del budget globale, il backend sospende le chiamate e il gioco usa il direttore locale.
 
 L'inferenza completamente nel browser è un'opzione futura. Transformers.js supporta WASM e WebGPU con modelli compatibili; non è sufficiente scegliere un qualsiasi modello del catalogo. Download, RAM e competizione con la GPU del gioco vanno misurati prima di adottarla.
 
@@ -140,17 +140,13 @@ Se il direttore generativo non migliora i playtest, ridurne il ruolo a comunicaz
 
 ## Consumo e dipendenze
 
-Prima dello sviluppo completo servono un account Hugging Face, un token backend e accesso a un provider adatto. La licenza aperta dei pesi non rende gratuite le API.
+Prima dello sviluppo completo servono un account TypeSafe e una chiave backend abilitata a Jev.
 
 Per il prototipo: limite indicativo di 1.500 token di input e 150 di output per chiamata, massimo 20 chiamate per partita. Il caso massimo corrisponde quindi a circa 30.000 token di input e 3.000 di output, esclusi eventuali token di ragionamento o costi accessori del provider. Preferire modalità senza ragionamento esteso se esposta e verificata dal provider.
 
 Misurare il consumo effettivo nella fase 1. Calcolare il costo per 100 partite dalle tariffe correnti del provider, più hosting; fissare poi un tetto di spesa e di concorrenza. Non assumere che crediti gratuiti o disponibilità del servizio restino invariati.
 
-## Fonti ufficiali consultate
+## Riferimenti
 
-- [Scheda Qwen/Qwen3-8B: capacità, licenza e opzioni di esecuzione](https://huggingface.co/Qwen/Qwen3-8B)
-- [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers/index)
-- [Client JavaScript e protezione del token con proxy](https://huggingface.co/docs/huggingface.js/inference/README)
-- [Output strutturati con Inference Providers](https://huggingface.co/docs/inference-providers/guides/structured-output)
-- [Transformers.js e inferenza WebGPU](https://huggingface.co/docs/transformers.js/guides/webgpu)
+- [API TypeSafe](https://docs.typesafe.ai/api/system-one)
 - [Documentazione Three.js](https://threejs.org/docs/)

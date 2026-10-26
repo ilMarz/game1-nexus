@@ -29,8 +29,7 @@ test('commander endpoint rejects cross-origin calls and malformed payloads',asyn
   const r=res();await handler({method:'POST',headers:{origin:'https://other.test',host:'game.test'},body:snapshot},r);assert.equal(r.statusCode,403);
   const invalid=res();await handler({method:'POST',headers:{},body:'{'},invalid);assert.equal(invalid.statusCode,400);
 });
-test('Qwen adapter validates the same three decisions and keeps the game budget',async()=>{
-  const saved=process.env.HF_TOKEN,original=globalThis.fetch;process.env.HF_TOKEN='hf_commander_test';let sent;
-  globalThis.fetch=async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({choices:[{message:{content:'{"sector":"east","composition":"swarm","objective":"core","budget":9999}'}}]})};};
-  try{const r=res();await handler({method:'POST',headers:{'x-forwarded-for':'commander-hf'},body:{...snapshot,provider:'huggingface'}},r);assert.equal(r.data.source,'huggingface');assert.equal(r.data.budget,14);assert.equal(r.data.sector,'east');assert.equal(JSON.parse(sent.messages[1].content).defenses[0].type,'laser');assert.ok(!JSON.stringify(r.data).includes('hf_commander_test'));}finally{globalThis.fetch=original;if(saved===undefined)delete process.env.HF_TOKEN;else process.env.HF_TOKEN=saved;}
+test('removed provider is rejected without calling a model',async()=>{
+  const original=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw Error('unexpected model call');};
+  try{const r=res();await handler({method:'POST',headers:{},body:{...snapshot,provider:'huggingface'}},r);assert.equal(r.statusCode,400);assert.equal(r.data.error,'invalid_provider');assert.equal(calls,0);}finally{globalThis.fetch=original;}
 });

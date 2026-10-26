@@ -1,3 +1,4 @@
+import {blockLimitedRequest} from '../server/game-access.js';
 import {hasKey,selectProvider} from '../server/jev.js';
 import {MODULES,TECHNOLOGIES,barrierHp,SLOTS,SECTORS,COMPOSITIONS,OBJECTIVES,maxModuleHp,normalizePlan,localPlan,defenseSummary,explainPlan,budgetForWave} from '../orbit-sim.js';
 const limits=new Map();
@@ -45,6 +46,7 @@ export function parseCommanderAnswer(data){
   const plan=normalizePlan(choices);return plan?{...plan,confidence:Math.min(...confidences)}:null;
 }
 export default async function handler(req,res){
+  if(blockLimitedRequest(res))return;
   res.setHeader('Cache-Control','no-store');
   const error=(reason,status=400)=>res.status(status).json({error:reason});
   if(req.method!=='POST')return error('method_not_allowed',405);
@@ -56,20 +58,15 @@ export default async function handler(req,res){
   const reply=(plan,source,extra={})=>res.status(200).json({...plan,source,budget:budgetForWave(snapshot.wave),evidence:explainPlan(plan,defenseSummary(snapshot.structures,snapshot.mode)),...extra});
   if(provider==='off')return reply({sector:'north',composition:'balanced',objective:'core'},'off');
   const fallback=reason=>reply(localPlan(snapshot),'fallback',{reason,provider});
-  if(!hasKey(provider==='typesafe'?process.env.TYPESAFE_API_KEY:process.env.HF_TOKEN))return fallback('missing_token');
+  if(!hasKey(process.env.TYPESAFE_API_KEY))return fallback('missing_token');
   const now=Date.now(),ip=String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'unknown').split(',')[0];
   for(const [key,v] of limits)if(v.until<now)limits.delete(key);
   const limit=limits.get(ip)||{count:0,until:now+60000};if(limit.count>=18)return fallback('rate_limited');limit.count++;limits.set(ip,limit);
   const started=Date.now();
   try{
-    const context=buildCommanderRequest(snapshot);let response,plan;
-    if(provider==='typesafe'){
-      response=await fetch('https://api.typesafe.ai/v1/systemone',{method:'POST',headers:{Authorization:`Bearer ${process.env.TYPESAFE_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(context),signal:AbortSignal.timeout(8000)});
-      if(response.ok)plan=parseCommanderAnswer(await response.json());
-    }else{
-      response=await fetch('https://router.huggingface.co/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${process.env.HF_TOKEN}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(8000),body:JSON.stringify({model:process.env.HF_MODEL||'Qwen/Qwen3-8B',messages:[{role:'system',content:instructions+' Return ONLY JSON with sector (north/east/south/west), composition (balanced/swarm/armor/siege/raiders), objective (core/energy/cluster/economy/barriers). /no_think'},{role:'user',content:JSON.stringify(context.state)}],max_tokens:160,temperature:.2,stream:false})});
-      if(response.ok){const text=(await response.json()).choices?.[0]?.message?.content;try{plan=normalizePlan(JSON.parse(text.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')));}catch{}}
-    }
+    const context=buildCommanderRequest(snapshot);let plan;
+    const response=await fetch('https://api.typesafe.ai/v1/systemone',{method:'POST',headers:{Authorization:`Bearer ${process.env.TYPESAFE_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(context),signal:AbortSignal.timeout(8000)});
+    if(response.ok)plan=parseCommanderAnswer(await response.json());
     if(!response.ok)return fallback(response.status===402?'insufficient_credits':response.status===401||response.status===403?'invalid_token':'provider_unavailable');
     return plan?reply(plan,provider,{latencyMs:Date.now()-started}):fallback('invalid_decision');
   }catch{return fallback('provider_unavailable');}

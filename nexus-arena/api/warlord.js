@@ -1,3 +1,4 @@
+import {blockLimitedRequest} from '../server/game-access.js';
 import {hasKey} from '../server/jev.js';
 import {PASSAGES,ZONES,CLIFFS} from '../rts-terrain.js';
 import {TROOPS,BUILDINGS} from '../rts-sim.js';
@@ -76,6 +77,7 @@ export function parseWarlordAnswer(data,allowedManeuvers=null,team='red',develop
   const result=normalizeRtsPlan(plan);return result?{...result,confidence:Math.min(...scores)}:null;
 }
 export default async function handler(req,res){
+  if(blockLimitedRequest(res))return;
   res.setHeader('Cache-Control','no-store');const error=(reason,status=400)=>res.status(status).json({error:reason});
   if(req.method!=='POST')return error('method_not_allowed',405);
   if(Number(req.headers['content-length']||0)>32768)return error('request_too_large',413);
